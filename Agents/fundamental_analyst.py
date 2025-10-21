@@ -45,11 +45,11 @@ ChatLLM = ChatOpenAI(
     model="qwen-plus",
     streaming=True,
     temperature=0.1,
-    timeout=15,
-    max_retries=1,
+    timeout=15000,
+    max_retries=3,
 )
 
-# # 后续的messages定义和invoke/stream调用保持不变
+# 后续的messages定义和invoke/stream调用保持不变
 # messages = [
 #     {"role": "system", "content": "Now you are a very professional investment expert"},
 #     {"role": "user", "content": "hello,How can I earn more money from stock market and crypto market?"}
@@ -60,6 +60,8 @@ ChatLLM = ChatOpenAI(
 # 先用ctrl+"/"隐藏上面的LLM问答代码，先完成Finnhub/Alpha Vantage这类数据源的调用。再尝试将返回回来的金融数据塞进大模型中。
 
 # 在上面我们已经通过finnhub_api_key获取了Finnhub的API KEY，下面需要初始化客户端
+
+
 finnhub_client=finnhub.Client(api_key=finnhub_api_key)
 
 # 定义一个通过股票代码获取公司概况的函数
@@ -253,6 +255,67 @@ def get_stock_filings(symbol,str_time,end_time):
     stock_filings=finnhub_client.filings(symbol=symbol,_from=str_time,to=end_time)
     return stock_filings
 # print(get_stock_filings('NVDA','2025-09-01','2025-10-01'))
+
+
+
+# 现阶段应该更注重功能性＞严谨性，先让数据流动起来(数据→LLM→输出)
+
+## 把Finnhub数据传给LLM，就是把数据塞进"user"的"content"里
+def fundamental_analysis(symbol:str,str_time,end_time)->str:# symbol里面的str是用于提醒symbol中应该输入str，->str指定函数的返回值类型
+    company_profile=get_company_profile(symbol)
+    company_basic_financials=get_company_basic_financials(symbol,'all')
+    company_real_time_data=get_real_time_data(symbol)
+    company_news=get_company_news(symbol,str_time,end_time)
+    company_peers=get_company_peers(symbol)
+    comany_financials_reported=get_financials_reported(symbol,freq_time='annual')
+    company_stock_filings=get_stock_filings(symbol,str_time,end_time)
+
+    data=f"""
+   请根据我提供的{symbol}的基本面数据，为我进行分析；
+   公司基本信息：
+  1.公司名称：{company_profile["名称"]}
+  2.所属行业：{company_profile["行业"]}
+  3.目前市值：{company_profile["市值(百万美元)"]}
+  4.官网：{company_profile["官网"]}
+  5.最近成交价：{company_real_time_data["最新成交价(免费版是延时15min的数据)"]}
+  6.前一个交易日的收盘价：{company_real_time_data["前一个交易日的收盘价"]}
+  7.52周最高价格：{company_basic_financials["52周最高"]}
+  8.52周最低价格：{company_basic_financials["52周最低"]}
+  9.基于过去52周每日收盘价就算的价格回报率：{company_basic_financials["基于过去52周每日收盘价计算的价格回报率"]}
+  10.行业竞争对手：{company_peers}
+  11.最近30天公司情况:{company_news}
+  12.已公布的财务数据：{comany_financials_reported}
+  13.最近公司在SEC的备案文件:{company_stock_filings}
+
+   
+   请从以下角度分析：
+   1. 估值水平
+   2.根据财务数据报表
+   3.其他基本面分析可能会涉及的角度
+
+   要求：
+   1.分析客观，基于数据
+   2.结论明确
+   3.最终分析完后提供清晰的投资建议(被高估/被低估)，并给出理由
+
+   """
+    
+    # 调用大语言模型
+    messages=[
+        {"role":"system","content":"现在的你是一名专业的金融投资基本面分析师，尤其擅长根据提供的企业资料与财务数据表现，并且结合当前企业股价表现判断企业股票价格当前被高估或是低估"},
+        {"role":"user","content":data}
+    ]
+    # 回答建议使用流式输出
+    for chunck in ChatLLM.stream(messages):
+        print(chunck.content,end="",flush=True)
+if __name__=="__main__":# 这个需要移到函数定义外面确保被调用
+        fundamental_analysis(symbol='NVDA',str_time='2025-09-01',end_time='2025-10-21')
+
+ 
+
+    
+
+
 
     
 
