@@ -14,6 +14,8 @@
 # 按照上面那个Github网页提示，在终端pip安装，然后使用pip freeze > requirements.txt 更新
 # 接着在.env中输入你申请的Finnhub API KEY，然后回到本文件os.getenv()调用。
 # 考虑到金融数据源有次数与频率的双重限制，这里我们再免费区搞一个Alpha Vintage的API KEY，然后如法炮制到我的项目中来
+# 我们从股票基本面对股票进行基本面分析离不开对当下美国宏观经济情况的分析，因此我们尝试使用FRED (Federal Reserve Economic Data) API，
+# 同时美国劳工统计局 (BLS - Bureau of Labor Statistics) API提供最原始的CPI和非农就业数据、美国经济分析局 (BEA - Bureau of Economic Analysis) API提供最原始的GDP数据
 
 
 # Langchain相关库
@@ -23,6 +25,7 @@ from langchain.schema import HumanMessage,FunctionMessage
 import os
 from dotenv import load_dotenv
 import datetime
+from datetime import date,timedelta
 # Finnhub官方Python库
 import finnhub  
 from finnhub.exceptions import FinnhubAPIException, FinnhubRequestException  # 捕获Finnhub异常
@@ -30,6 +33,9 @@ from finnhub.exceptions import FinnhubAPIException, FinnhubRequestException  # �
 from alpha_vantage.timeseries import TimeSeries
 from alpha_vantage.techindicators import TechIndicators
 from alpha_vantage.fundamentaldata import FundamentalData
+# 新增FRED美国宏观经济数据
+from fredapi import Fred
+
 
 # 加载.env并打印密钥（测试用，后续可删除）
 
@@ -37,6 +43,9 @@ load_dotenv()
 api_key = os.getenv("DASHSCOPE_API_KEY")
 finnhub_api_key=os.getenv("FINNHUB_API_KEY")
 av_api_key = os.getenv("ALPHAVANTAGE_API_KEY")
+fred_api_key=os.getenv("FRED_API_KEY")
+fred_client=Fred(api_key=fred_api_key)
+
 
 # 初始化模型
 ChatLLM = ChatOpenAI(
@@ -300,16 +309,239 @@ def fundamental_analysis(symbol:str,str_time,end_time)->str:# symbol里面的str
 
    """
     
-    # 调用大语言模型
+    # # 调用大语言模型
+    # messages=[
+    #     {"role":"system","content":"现在的你是一名专业的金融投资基本面分析师，尤其擅长根据提供的企业资料与财务数据表现，并且结合当前企业股价表现判断企业股票价格当前被高估或是低估"},
+    #     {"role":"user","content":data}
+    # ]
+    # # 回答建议使用流式输出
+    # for chunck in ChatLLM.stream(messages):
+    #     print(chunck.content,end="",flush=True)
+# if __name__=="__main__":# 这个需要移到函数定义外面确保被调用
+#         fundamental_analysis(symbol='NVDA',str_time='2025-09-01',end_time='2025-10-21')
+
+
+# 通过FRED获取美国宏观经济数据
+def get_macro_economic_data():
+    """
+    获取美国宏观经济数据：
+    返回包含以下数据的字典
+    - 汇率(美元兑人民币、日元、欧元)
+    - 利率(联邦基金目标利率)
+    - 通胀(CPI、核心CPI、核心PCE)
+    - GDP(名义GDP、实际GDP、GDP平减指数)
+    """
+    macro_data={}#用一个空字典来存储宏观经济数据
+    
+    # 汇率数据
+    try:
+        # 美元兑人民币(DEXCHUS)
+        usd_cny=fred_client.get_series('DEXCHUS',observation_start='2024-01-01')
+        # 调用fred_client中的get_series()方法，请求FRED数据库中序列为DEXCHUS(对应美元兑人民币汇率)的数据，
+        # 且仅获取2024-01-01之后的观测值，返回的usd_cny是一个带日期索引的时间序列对象(通常是pandas series)
+        macro_data['美元兑人民币']={# 在macro_data字典中创建一个'美元兑人民币'的子字典，用于存储该汇率的具体信息
+            '最新值':round(usd_cny.iloc[-1],4),# iloc[-1]获取usd_cny序列的最后一个值(即最新的汇率数据)， round(xxx,4)将该值保留4位小数，作为'最新值'的内容存入子字典
+            '更新日期':usd_cny.index[-1].strftime('%Y-%m-%d')# # index[-1]获取usd_cny序列的最后一个索引标签(即最新汇率数据对应的日期)，round(xxx,4)将该值保留4位小数
+            # .strftime('%Y-%m-%d')将日期格式转化为'年-月-日'的字符串形式，作为‘更新日期’存入子字典中
+            }
+        # 美元兑日元(DEXJPUS)
+        usd_jp=fred_client.get_series('DEXJPUS',observation_start='2024-01-01')
+        macro_data['美元兑日元']={
+            '最新值':round(usd_jp.iloc[-1],4),
+            '更新日期':usd_jp.index[-1].strftime('%Y-%m-%d')
+        }
+        
+        # 欧元兑美元(DEXUSEU)--注意，想要获得美元兑欧元需要去倒数
+        eur_usd=fred_client.get_series('DEXUSEU',observation_start='2024-01-01')
+        macro_data['美元兑欧元']={
+            '最新值':round(1/eur_usd.iloc[-1],4),
+            '更新日期':eur_usd.index[-1].strftime('%Y-%m-%d')
+        }
+    except Exception as e:
+        print(f"获取汇率数据失败：{e}")
+        macro_data['汇率数据']="获取失败"
+
+    try:# 获取利率数据
+        # 联邦基金目标利率上限(DFEDTARU)
+        fed_rate_upper=fred_client.get_series('DFEDTARU',observation_start='2024-01-01')
+        # 联邦基金目标利率下线(DFEDTARL)
+        fed_rate_lower=fred_client.get_series('DFEDTARL',observation_start='2024-01-01')
+
+        macro_data['联邦基金目标利率']={
+            '利率区间':f"{fed_rate_lower.iloc[-1]:.2f}%-{fed_rate_upper.iloc[-1]:.2f}%",
+            '更新日期':fed_rate_upper.index[-1].strftime('%Y-%m-%d')
+        }
+    except Exception as e:
+        print(f'利率数据获取失败：{e}')
+        macro_data['联邦基金目标利率']='获取失败'
+
+    try:# 就业数据
+        # 非农就业人数(千人)(PAYEMS)
+        payrolls=fred_client.get_series('PAYEMS',observation_start='2024-01-01')
+        macro_data['非农就业人数']={
+            '最新值':int(payrolls.iloc[-1]),
+            '月度变化(千人)':int(payrolls.iloc[-1]-payrolls.iloc[-2]),
+            '更新日期':payrolls.index[-1].strftime('%Y-%m-%d')
+        }
+        # 失业率(UNRATE)
+        unemployment=fred_client.get_series('UNRATE',observation_start='2024-01-01')
+        macro_data['失业率']={
+            '最新值(%)':round(unemployment.iloc[-1]),
+            '更新日期':unemployment.index[-1].strftime('%Y-%m-%d')
+        }
+        # 平均时薪(美元/小时)(CES0500000003)
+        hourly_earnings=fred_client.get_series('CES0500000003',observation_start='2024-01-01')
+        macro_data['平均时薪']={
+            '最新值(美元/小时)':round(hourly_earnings.iloc[-1],2),
+            '同比增长':round(((hourly_earnings.iloc[-1]/hourly_earnings.iloc[-13])-1)*100,2),
+            '更新日期':hourly_earnings.index[-1].strftime('%Y-%m-%d')
+        }
+    except Exception as e:
+        print(f"就业数据获取失败：{e}")
+        macro_data['就业数据']='获取失败'
+    
+    try: # 通胀数据
+        # 未季调CPI(CPIAUCNS)
+        cpi=fred_client.get_series('CPIAUCNS',observation_start='2023-01-01')
+        cpi_yoy=((cpi.iloc[-1]/cpi.iloc[-13])-1)*100
+
+        # 核心CPI(不含食品和能源)(CPILFESL)
+        core_cpi=fred_client.get_series('CPILFESL',observation_start='2023-01-01')
+        core_cpi_yoy=((core_cpi.iloc[-1]/core_cpi.iloc[-13])-1)*100
+
+        # 核心PCE价格指数(PCEPILFE)
+        core_pce=fred_client.get_series('PCEPILFE',observation_start='2023-01-01')
+        core_pce_yoy=((core_pce.iloc[-1]/core_pce.iloc[-13])-1)*100
+
+        macro_data['通胀数据']={
+            'CPI同比(%)':round(cpi_yoy,2),
+            '核心CPI同比(%)':round(core_cpi_yoy,2),
+            '核心PCE同比(%)':round(core_pce_yoy,2),
+            '更新日期':cpi.index[-1].strftime('%Y-%m-%d')
+        }
+    except Exception as e:
+        print(f'通胀数据获取失败:{e}')
+        macro_data['通胀数据']="获取失败"
+
+    try:
+        # 名义GDP(十亿美元)(GDP)
+        nominal_gdp=fred_client.get_series('GDP',observation_start='2023-01-01')
+
+        # 实际GDP(2017年链式美元)(GDPC1)
+        real_gdp=fred_client.get_series('GDPC1',observation_start='2023-01-01')
+
+        # GDP平减指数(GDPDEF)
+        gdp_deflator=fred_client.get_series('GDPDEF',observation_start='2023-01-01')
+
+        # 计算同比增长率
+        nominal_gdp_growth=((nominal_gdp.iloc[-1]/nominal_gdp.iloc[-5])-1)*100
+        real_gdp_growth=((real_gdp.iloc[-1]/real_gdp.iloc[-4])-1)*100
+        
+        macro_data['GDP数据']={
+            '名义GDP(十亿美元)':round(nominal_gdp.iloc[-1],1),
+            '名义GDP同比增长(%)':round(nominal_gdp_growth,2),
+            '实际GDP(十亿美元)':round(real_gdp.iloc[-1],1),
+            '实际GDP同比增长(%)':round(real_gdp_growth,2),
+            'GDP平减指数':round(gdp_deflator.iloc[-1],2),
+            '更新日期':nominal_gdp.index[-1].strftime('%Y-%m-%d')
+        }
+    except Exception as e:
+        print(f"GDP数据获取失败:{e}")
+        macro_data['GDP数据']='获取失败'
+
+
+    print("===宏观数据获取完成")
+    return macro_data
+
+# 测试函数
+def test_macro_data():
+    macro_data=get_macro_economic_data()#调用上面创建获取宏观经济数据的函数，将结果存储在变量macro_data中
+    print("="*30)
+    print("美国宏观经济数据汇总")
+
+    for category,data in macro_data.items():# 遍历macro_data字典中的所有键值对，category是键，data是对应的值
+        print(f"\n[{category}]")# 使用f-string格式化字符串，打印一个换行符，再加上用[]包围的类别名称
+        if isinstance(data,dict):# isinstance()函数用于检查对象的类型，即检查data是否为字典类型
+            for key,value in data.items():# 如果data是字典类型的话，遍历data这个字典的键值对
+                print(f"{key}:{value}")# 打印字典中每个键值对，格式为key：value
+        else:
+            print(f"{data}")# 如果data不是字典类型，直接打印data的内容
+
+# if __name__=="__main__":
+#     test_macro_data()
+
+# 完成FRED中宏观经济数据的导入后，我们尝试将FRED的宏观数据以及我们通过Finnhub获取的微观股票数据全部注入给大模型，
+# 思路上还是data=f'''{string} '''方式，将data送进messages的content键对应的value值中。
+def fundamental_macroeconomic_stock_fundamental_analyze(symbol:str,str_time:str,end_time:str)-> str:
+    # 首先获取FRED中获取的宏观经济数据，因为是字典，子字典的形式，我们先字典[键]的方式获取到里面的子字典
+    macro_data=get_macro_economic_data()
+    # 接着获取Finnhub中获取的微观股票相关数据,这块还是跟之前差不多，因为之前定义的get_XXX函数都有返回值，直接把返回值继续赋给变量即可
+    company_profile=get_company_profile(symbol)
+    company_basic_financials=get_company_basic_financials(symbol,'all')
+    company_real_time_data=get_real_time_data(symbol)
+    company_news=get_company_news(symbol,str_time,end_time)
+    company_peers=get_company_peers(symbol)
+    comany_financials_reported=get_financials_reported(symbol,freq_time='annual')
+    company_stock_filings=get_stock_filings(symbol,str_time,end_time)
+
+    # 还是通过data=f-string的方式，将通过字典[键]的方式将value传入到data当中，最终函数返回data
+    data=f'''
+ 现在的你的身份是一名兼顾宏观经济周期分析与微观个股研究的顶级对冲基金经理，接下来我传入当下的宏观经济情况与要分析的个股情况，
+ 请结合当下的宏观经济数据以及我提供给你的微观个股资料，进行由宏观经济周期到微观个股的完整分析。
+ 以下为宏观经济数据：
+ 1.汇率情况：
+ 美元兑人民币:{macro_data['美元兑人民币']},
+ 美元兑日元：{macro_data['美元兑日元']},
+ 美元兑欧元：{macro_data['美元兑欧元']}。
+ 2.联邦基金利率情况：
+ 美国联邦基金目标利率情况：{macro_data['联邦基金目标利率']}
+ 3.就业数据情况：
+ 美国非农就业人数：{ macro_data['非农就业人数']},
+ 美国失业率情况：{ macro_data['失业率']},
+ 美国平均时薪：{macro_data['平均时薪']}。
+ 4.通胀数据：
+ 美国通胀数据：{macro_data['通胀数据']}。
+ 5.宏观经济数据
+ 美国宏观经济数据：{macro_data['GDP数据']}。
+
+ 其次为微观股票数据
+ 请根据我提供的{symbol}的基本面数据，为我进行分析；
+   公司基本信息：
+  1.公司名称：{company_profile["名称"]}
+  2.所属行业：{company_profile["行业"]}
+  3.目前市值：{company_profile["市值(百万美元)"]}
+  4.官网：{company_profile["官网"]}
+  5.最近成交价：{company_real_time_data["最新成交价(免费版是延时15min的数据)"]}
+  6.前一个交易日的收盘价：{company_real_time_data["前一个交易日的收盘价"]}
+  7.52周最高价格：{company_basic_financials["52周最高"]}
+  8.52周最低价格：{company_basic_financials["52周最低"]}
+  9.基于过去52周每日收盘价就算的价格回报率:{company_basic_financials["基于过去52周每日收盘价计算的价格回报率"]}
+  10.行业竞争对手：{company_peers}
+  11.最近30天公司情况:{company_news}
+  12.已公布的财务数据：{comany_financials_reported}
+  13.最近公司在SEC的备案文件:{company_stock_filings}
+
+  要求：
+  1. 根据收到的宏观经济数据，判断当下所处的宏观经济环境是偏向宽松或是偏向紧缩，并根据通胀数据与就业数据，
+  判断接下来美联储是会缩表或是扩表，即采取宽松的货币政策或是紧缩的货币政策，未来是否为继续降息防水。
+  2. 结合上面关于宏观经济数据的分析结果，通过比较当前最近成交价与52周最高、最低价格的比较以及最新公司发生的新闻状况、公司的财务情况等，
+  判断当下要分析的公司目前的股价是被高估或是低估，是否应当买入，为什么？按照目前的宏观情况与微观情况，什么样的价格买入比较合适？
+  3.逻辑清晰，表达有条理，从宏观经济到微观个股进行自上而下的梳理。
+ '''
     messages=[
-        {"role":"system","content":"现在的你是一名专业的金融投资基本面分析师，尤其擅长根据提供的企业资料与财务数据表现，并且结合当前企业股价表现判断企业股票价格当前被高估或是低估"},
-        {"role":"user","content":data}
-    ]
-    # 回答建议使用流式输出
-    for chunck in ChatLLM.stream(messages):
-        print(chunck.content,end="",flush=True)
-if __name__=="__main__":# 这个需要移到函数定义外面确保被调用
-        fundamental_analysis(symbol='NVDA',str_time='2025-09-01',end_time='2025-10-21')
+    {"role":"system","content":"你的身份是一名兼顾宏观经济周期分析与微观个股研究的顶级对冲基金经理,非常擅长结合宏观经济形势与微观个股现状进行分析"},
+    {"role":"user","content":data}]
+    for chunk in ChatLLM.stream(messages):
+        print(chunk.content,end="",flush=True)
+
+if __name__=="__main__":
+    fundamental_macroeconomic_stock_fundamental_analyze('NVDA','2025-09-25','2025-10-24')
+
+
+
+
+
+
 
  
 
