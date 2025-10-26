@@ -35,6 +35,12 @@ from alpha_vantage.techindicators import TechIndicators
 from alpha_vantage.fundamentaldata import FundamentalData
 # 新增FRED美国宏观经济数据
 from fredapi import Fred
+# 新增EODHD相关导入
+from eodhd import APIClient
+import pandas as pd
+# 新增Twelvedata相关导入
+from twelvedata import TDClient
+
 
 
 # 加载.env并打印密钥（测试用，后续可删除）
@@ -45,6 +51,11 @@ finnhub_api_key=os.getenv("FINNHUB_API_KEY")
 av_api_key = os.getenv("ALPHAVANTAGE_API_KEY")
 fred_api_key=os.getenv("FRED_API_KEY")
 fred_client=Fred(api_key=fred_api_key)
+# 从环境变量中获取EODHD的API KEY
+eodhd_api_key=os.getenv("EODHD_API_KEY")
+eodhd_client=APIClient(eodhd_api_key)
+# 从环境变量中获取TWELVEDATA的API KEY
+twelve_client=TDClient(apikey="TWELVE_DATA_API_KEY")
 
 
 # 初始化模型
@@ -534,8 +545,13 @@ def fundamental_macroeconomic_stock_fundamental_analyze(symbol:str,str_time:str,
     for chunk in ChatLLM.stream(messages):
         print(chunk.content,end="",flush=True)
 
-if __name__=="__main__":
-    fundamental_macroeconomic_stock_fundamental_analyze('NVDA','2025-09-25','2025-10-24')
+# if __name__=="__main__":
+#     fundamental_macroeconomic_stock_fundamental_analyze('NVDA','2025-09-25','2025-10-24')
+
+# 现在尝试从Alpha Vantage等其他金融数据源中获取金融数据，并尝试如果Finnhub超时未能获取金融数据，使用Alpha Vantage及其他金融数据源获取数据
+# 我们首先尝试使用Alpha Vantage,再尝试Twelve Data，最后再尝试使用EODHD
+
+
 
 
 
