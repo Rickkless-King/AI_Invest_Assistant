@@ -1,5 +1,5 @@
 # AI_Invest_Assistant
-An AI investment assistant based on large language models
+AI investment assistant based on large language models
 ============================================================================
 郑重声明如下内容，请严格遵守以下内容：
 本项目集成了 Finnhub、Alpha Vantage、Twelve Data和EODHD等第三方数据 API。
@@ -14,8 +14,8 @@ An AI investment assistant based on large language models
 ============================================================================
 
 ### V1.4版本
-#### 从金融数据源中获取多只股票进行分析-
-之前我们已经针对某一支股票实现了基本财务数据的相关分析加上最新一个月的新闻分享。同时还对比了行业内部分公司PE、PS之间的情况。下一步我希望能做到的是首先对A公司进行上述分析，再对B公司进行上述分析。因此，对我而言，难点有两个：1是根据.company_peers()方法获取到该行业内有哪些上市公司，再如法炮制对这些上述公司进行分析，但是因为我是用免费版的，短时间内高频调用不太现实，考虑补充Alpha Vantage或者其他金融数据源来输出相关内容，即如果调用Finnhub超时，就继续调用Alpha Vantage或者其他金融数据源的内容，反之，如果Alpha Vantage等其他金融数据源调用超时，再回过头来使用Finnhub。
+#### 增加替代金融数据源，防止Finnhub返回超时，增加稳健性-2025年10月26日更新
+因为我是用免费版的，短时间内高频调用不太现实，考虑补充Alpha Vantage或者其他金融数据源来输出相关内容，即如果调用Finnhub超时，就继续调用Alpha Vantage或者其他金融数据源的内容，
 第一个问题，除了Alpha Vantage和Finnhub，市面上还有哪些免费的微观个股层面的金融数据源？
 目前找到的包括：1.Twelve Data：https://support.twelvedata.com/en/ (推荐)。2.EODHD：https://eodhd.com/ (不建议用，EODHD免费版每日API调用仅限20次)。笔者还尝试使用Financial Modeling Prep (FMP)，但FMP 的条款明确禁止用户“将数据或服务集成到任何可供第三方访问的工具或应用程序中”，因此我的这个开源项目不支持。Yahoo Finance API((通过 yfinance 等库))这种抓取库的问题是一旦雅虎财经更改其网站的 HTML 布局或后端端点（他们会定期这样做），项目就会立即崩溃。因此需要不断地维护和更新代码，以适应雅虎的更改。开源AI助手会变得非常不稳定。Polygon.io也明确规定其免费套餐仅用于“测试、试用和其他评估性（但非开发性或生产性）的使用。因此还是使用Alpha Vantage、Twelve Data、Finnhub和EODHD这4种金融数据源较为稳妥。
 
@@ -31,8 +31,11 @@ An AI investment assistant based on large language models
 | Python使用      | 官方SDK（finnhub-python）| 社区库（alpha_vantage）或 requests 库| 官方SDK（twelvedata）| 官方或社区库（eodhd）|
 
 PS:一般来说有金融数据源官方库(如EODHD 官网SDK)和直接使用REST API两种方式。REST API是是通信协议/接口，所有语言通用，仅涉及发送HTTP请求和接收JSON响应。优点是跨语言项目能够很好支持，缺点是每次需要手动构建完整的URL字符串/手动接收JSON字符串/手动检查HTTP状态码。官方库只能用于某一特定编程语言，会自动将API返回的原始JSON响应解析并转换为特定个语言结构的数据结构，比如python中的dict、pandas DataFrame等，更易于后续处理。
-2025年10月26日12:25:24现在遇到了问题：之前使用的Finnhub，通过定义get_XXX函数返回了包括公司名称、所属行业、目前市值、官网、最近成交价、前一个交易日收盘价、52周最高最低价格、基于过去52周每日收盘价就算的价格回报率、行业竞争对手、最近30天公司情况、已发布的财务数据、最新公司在SEC的备案文件等数据，那么这里就存在2个问题：1.其他比如说Alpha Vantage、Twelve data和EODHD不一定支持能获取这些信息。2.第二个问题是即便能够返回，调用频率、一次调用返回的最大数这两个指标也不一定支持。
 
+  2025年10月26日12:25:24现在遇到了问题：之前使用的Finnhub，通过定义get_XXX函数返回了包括公司名称、所属行业、目前市值、官网、最近成交价、前一个交易日收盘价、52周最高最低价格、基于过去52周每日收盘价就算的价格回报率、行业竞争对手、最近30天公司情况、已发布的财务数据、最新公司在SEC的备案文件等数据，那么这里就存在2个问题：1.其他比如说Alpha Vantage、Twelve data和EODHD不一定支持能获取这些信息。2.第二个问题是即便能够返回，调用频率、一次调用返回的最大数这两个指标也不一定支持。
+
+  关于上述问题的解决方式：目前来看Twelve Data更支持技术分析等内容，包括Alpha Vantage在基本面分析这块能够提供的数据类型都不如Finnhub丰富，比如Alpha Vantage不支持同行公司、内部人员交易、SEC文件等，当然Alpha Vantage也有优点，能够完整提供3张财务报表。因此在基本面分析师Agent这块中，删除同行公司、内部人员交易、SEC文件、公司新闻来实现Finnhub+Alpha Vantage实现替换。
+  2025年10月26日21:50:01，目前是取Alpha Vantage和Finnhub功能的“交集”，通过try except块的方式，如果try中Finnhub数据源不能正常返回，则使用Alpha Vantage的数据源。
 
 
 ### V1.3版本

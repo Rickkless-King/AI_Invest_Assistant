@@ -535,7 +535,7 @@ def fundamental_macroeconomic_stock_fundamental_analyze(symbol:str,str_time:str,
   要求：
   1. 根据收到的宏观经济数据，判断当下所处的宏观经济环境是偏向宽松或是偏向紧缩，并根据通胀数据与就业数据，
   判断接下来美联储是会缩表或是扩表，即采取宽松的货币政策或是紧缩的货币政策，未来是否为继续降息防水。
-  2. 结合上面关于宏观经济数据的分析结果，通过比较当前最近成交价与52周最高、最低价格的比较以及最新公司发生的新闻状况、公司的财务情况等，
+  2. 结合上面关于宏观经济数据的分析结果,通过比较当前最近成交价与52周最高、最低价格的比较以及最新公司发生的新闻状况、公司的财务情况等，
   判断当下要分析的公司目前的股价是被高估或是低估，是否应当买入，为什么？按照目前的宏观情况与微观情况，什么样的价格买入比较合适？
   3.逻辑清晰，表达有条理，从宏观经济到微观个股进行自上而下的梳理。
  '''
@@ -549,7 +549,176 @@ def fundamental_macroeconomic_stock_fundamental_analyze(symbol:str,str_time:str,
 #     fundamental_macroeconomic_stock_fundamental_analyze('NVDA','2025-09-25','2025-10-24')
 
 # 现在尝试从Alpha Vantage等其他金融数据源中获取金融数据，并尝试如果Finnhub超时未能获取金融数据，使用Alpha Vantage及其他金融数据源获取数据
-# 我们首先尝试使用Alpha Vantage,再尝试Twelve Data，最后再尝试使用EODHD
+# 首先尝试使用Alpha Vantage
+def get_company_profile_with_fallback(symbol:str) -> str:
+    # 获取公司概况(Finnhub优先，失败则用Alpha Vantage)
+    try:
+        # 先尝试Finnhub
+        profile=finnhub_client.company_profile2(symbol=symbol)
+        return{
+            '金融数据源来源':'Finnhub',
+            '名称':profile.get('name'),
+            '行业':profile.get('finnhubIndustry'),
+            'ipo时间':profile.get('ipo'),
+            '市值(百万美元)':profile.get('marketCapitalization'),
+            '官网':profile.get('weburl'),
+            '描述':profile.get('description'),
+        }
+    except Exception as e:
+        print(f"Finnhub调用失败：{e}")
+        print("切换为Alpha Vantage...")
+    
+    try:# 使用备用的Alpha Vantage
+        fd=FundamentalData(key=av_api_key,output_format='dict')
+        overview,_=fd.get_company_overview(symbol)
+
+        return{
+            '金融数据来源':'Alpha Vantage',
+            '名称':overview.get('Name','N/A'),
+            '行业':overview.get('Industry','N/A'),
+            'ipo时间':overview.get('IPODate','N/A'),
+            '市值(百万美元)':float(overview.get('MarketCapitalization',0)/1000000),
+            '官网':'N/A',#Alpha Vantage不提供官网
+            '描述':overview.get('Description','N/A'),
+        }
+    except Exception as e2:
+        return{'error':f"Both APIs failed:{e},{e2}"}
+
+def get_real_time_data_with_fallback(symbol: str) -> dict:
+    """
+    获取实时报价（Finnhub优先，失败则用Alpha Vantage）
+    """
+    try:
+        # 先尝试Finnhub
+        real_time_data = finnhub_client.quote(symbol=symbol)
+        timestamp = real_time_data.get('t')
+        local_time = datetime.datetime.fromtimestamp(timestamp)
+        formatted_local_time = local_time.strftime("%Y-%m-%d %H:%M:%S")
+        
+        return {
+            'source': 'Finnhub',
+            "最新成交价": real_time_data.get('c'),
+            "当日最高价": real_time_data.get('h'),
+            "当日最低价": real_time_data.get('l'),
+            "当日开盘价": real_time_data.get('o'),
+            "前一个交易日的收盘价": real_time_data.get('pc'),
+            "上述数据的更新时间": formatted_local_time
+        }
+    except Exception as e:
+        print(f"⚠️ Finnhub失败: {e}")
+        print("🔄 切换到Alpha Vantage...")
+        
+        try:
+            # 备用Alpha Vantage
+            ts = TimeSeries(key=av_api_key, output_format='dict')
+            quote, _ = ts.get_quote_endpoint(symbol)
+            
+            return {
+                'source': 'Alpha Vantage',
+                "最新成交价": float(quote.get('05. price', 0)),
+                "当日最高价": float(quote.get('03. high', 0)),
+                "当日最低价": float(quote.get('04. low', 0)),
+                "当日开盘价": float(quote.get('02. open', 0)),
+                "前一个交易日的收盘价": float(quote.get('08. previous close', 0)),
+                "上述数据的更新时间": quote.get('07. latest trading day', 'N/A')
+            }
+        except Exception as e2:
+            return {'error': f'Both APIs failed: {e}, {e2}'}
+    
+
+def get_financials_with_fallback(symbol:str) -> str:
+    try:
+        financials=finnhub_client.company_basic_financials(symbol,'all')
+        metric=financials.get('metric',{})
+
+        return{
+            '金融数据源来源':'Finnhub',# return里返回的是“ ”或者是''没关系，aa_BB['金融数据源来源']==aa_BB["金融数据源来源"]
+            "52周最高":metric.get('52WeekHigh'),
+            "52周最低": metric.get("52WeekLow"),
+            "Beta系数": metric.get("beta"),
+            "PE比率": metric.get("peBasicExclExtraTTM"),
+            "毛利率": metric.get("grossMarginTTM")
+        }
+    except Exception as e:
+        print(f"Finnhub获取失败:{e}")
+        print("切换到Alpha Vantage")
+
+        try:
+            fd=FundamentalData(key=av_api_key,output_format='dict')
+            overview,_=fd.get_company_overview(symbol)
+
+            return {
+                'source': 'Alpha Vantage',
+                "52周最高": float(overview.get('52WeekHigh', 0)),
+                "52周最低": float(overview.get('52WeekLow', 0)),
+                "Beta系数": float(overview.get('Beta', 0)),
+                "PE比率": float(overview.get('PERatio', 0)),
+                "毛利率": float(overview.get('GrossMarginTTM', 0))
+            }
+        except Exception as e2:
+            return {'error': f'Both APIs failed: {e}, {e2}'}
+        
+
+# 使用try-except块之后，修改fundamental_macroeconomic_stock_fundamental_analyze()函数
+def fundamental_macroeconomic_stock_fundamental_analyze_with_fallback(symbol:str,str_time:str,end_time:str):
+    macro_data=get_macro_economic_data()# 获取宏观经济数据
+
+    profile = get_company_profile_with_fallback(symbol)
+    quote = get_real_time_data_with_fallback(symbol)
+    financials = get_financials_with_fallback(symbol)
+
+
+    # 还是通过往data里存入字符串，然后把data存进messages中，通过.stream(messages)方法输出内容
+    data=f'''
+ 现在的你的身份是一名兼顾宏观经济周期分析与微观个股研究的顶级对冲基金经理，接下来我传入当下的宏观经济情况与要分析的个股情况，
+ 请结合当下的宏观经济数据以及我提供给你的微观个股资料，进行由宏观经济周期到微观个股的完整分析。
+ 以下为宏观经济数据：
+ 1.汇率情况：
+ 美元兑人民币:{macro_data['美元兑人民币']},
+ 美元兑日元：{macro_data['美元兑日元']},
+ 美元兑欧元：{macro_data['美元兑欧元']}。
+ 2.联邦基金利率情况：
+ 美国联邦基金目标利率情况：{macro_data['联邦基金目标利率']}
+ 3.就业数据情况：
+ 美国非农就业人数：{ macro_data['非农就业人数']},
+ 美国失业率情况：{ macro_data['失业率']},
+ 美国平均时薪：{macro_data['平均时薪']}。
+ 4.通胀数据：
+ 美国通胀数据：{macro_data['通胀数据']}。
+ 5.宏观经济数据
+ 美国宏观经济数据：{macro_data['GDP数据']}。
+
+ 其次为微观股票数据
+ 请根据我提供的{symbol}的基本面数据，为我进行分析；
+    公司信息：
+    - 名称：{profile['名称']}
+    - 行业：{profile['行业']}
+    - 市值：{profile['市值(百万美元)']}百万美元
+    
+    最新报价：
+    - 当前价格：${quote['最新成交价']}
+    - 52周区间：${financials['52周最低']} - ${financials['52周最高']}
+    
+    财务指标：
+    - PE比率：{financials['PE比率']}
+    - Beta：{financials['Beta系数']}
+  要求：
+  1. 根据收到的宏观经济数据，判断当下所处的宏观经济环境是偏向宽松或是偏向紧缩，并根据通胀数据与就业数据，
+  判断接下来美联储是会缩表或是扩表，即采取宽松的货币政策或是紧缩的货币政策，未来是否为继续降息防水。
+  2. 结合上面关于宏观经济数据的分析结果,通过比较当前最近成交价与52周最高、最低价格的比较以及最新公司发生的新闻状况、公司的财务情况等，
+  判断当下要分析的公司目前的股价是被高估或是低估，是否应当买入，为什么？按照目前的宏观情况与微观情况，什么样的价格买入比较合适？
+  3.逻辑清晰，表达有条理，从宏观经济到微观个股进行自上而下的梳理。
+ '''
+    messages=[{"role":"system","content":""},{"role":"user","content":data}]
+    for chunck in ChatLLM.stream(messages):
+        print(chunck.content,end="",flush=True)
+
+if __name__=="__main__":
+    fundamental_macroeconomic_stock_fundamental_analyze_with_fallback('NVDA','2025-09-25','2025-10-24')
+    
+
+
+
 
 
 
