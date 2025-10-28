@@ -704,7 +704,7 @@ def fundamental_macroeconomic_stock_fundamental_analyze_with_fallback(symbol:str
     - Beta：{financials['Beta系数']}
   要求：
   1. 根据收到的宏观经济数据，判断当下所处的宏观经济环境是偏向宽松或是偏向紧缩，并根据通胀数据与就业数据，
-  判断接下来美联储是会缩表或是扩表，即采取宽松的货币政策或是紧缩的货币政策，未来是否为继续降息防水。
+  判断接下来美联储是会缩表或是扩表，即采取宽松的货币政策或是紧缩的货币政策，未来是否为继续降息放水。
   2. 结合上面关于宏观经济数据的分析结果,通过比较当前最近成交价与52周最高、最低价格的比较以及最新公司发生的新闻状况、公司的财务情况等，
   判断当下要分析的公司目前的股价是被高估或是低估，是否应当买入，为什么？按照目前的宏观情况与微观情况，什么样的价格买入比较合适？
   3.逻辑清晰，表达有条理，从宏观经济到微观个股进行自上而下的梳理。
@@ -713,9 +713,86 @@ def fundamental_macroeconomic_stock_fundamental_analyze_with_fallback(symbol:str
     for chunck in ChatLLM.stream(messages):
         print(chunck.content,end="",flush=True)
 
-if __name__=="__main__":
-    fundamental_macroeconomic_stock_fundamental_analyze_with_fallback('NVDA','2025-09-25','2025-10-24')
+# if __name__=="__main__":
+#     fundamental_macroeconomic_stock_fundamental_analyze_with_fallback('NVDA','2025-09-25','2025-10-24')
+
+
+
+# 我们现在已经依次完成了获取微观股票基本面数据→美国宏观经济数据→通过try except在Finnhub获取数据超时的时候使用Alpha Vantage替补。
+# 接着我们来尝试首先通过Finnhub获取A股票所属行业全部的股票B、C、D...等，
+# 获取之后，之前我们是通过在定义函数里直接将data传入messages中的方式。我们先all_data=[]
+# →for symbol in symbols:→profile、quote、financials→all_data.append({"":})→
+# comparison_text=f-string(当下宏观环境XXXXX，请对比以下同行业公司的各支股票)→for data in all_data:→
+# comparison_text+=f-string(获取value值)→comparison_text+=f-string(请从当下的宏观经济环境及未来变化趋势、估值水平、风险水平，XXXXX)
+# →messages里面content装comparison_text
     
+def fundamental_macroeconomic_multiple_stock_fundamental_analyze_with_fallback(symbol:str,str_time:str,end_time:str):
+    company_peers=get_company_peers(symbol)# 返回的刚好是["AAPL","EMC","DELL","SEG"]这种列表
+    macro_data=get_macro_economic_data()# 获取宏观经济数据
+    print(f"正在对比{len(company_peers)}")
+    all_data=[]#收集所有股票数据
+    for stock in company_peers:
+            profile = get_company_profile_with_fallback(stock)#return结果
+            quote = get_real_time_data_with_fallback(stock)#return结果
+            financials = get_financials_with_fallback(stock)#return结果
+            all_data.append({#用alll_data.append把字典收集到的内容添加到列表all_data中。
+                "股票代码":symbol,
+                "name":profile['名称'],
+                "市值":profile['市值(百万美元)'],
+                "price":quote['最新成交价'],
+                "52周最高价格":financials['52周最高'],
+                "52周最低价格":financials['52周最低'],
+                'PE比率':financials['PE比率'],
+                "Beta系数":financials['Beta系数']
+            })
+    comparison_text=f'''
+ 请对比以下同行业的不同股票
+ '''
+    for data in all_data:# 基于上述收集到的数据，生成一段可读的对比文本
+        comparison_text+=f'''
+     {data['name']}({data['股票代码']}):
+     -当前价格：${data['price']}
+     -52周最高点:${data['52周最高价格']}
+     -52周最低点:${data['52周最低价格']}
+     -PE比率:{data['PE比率']}
+     - Beta系数:{data['Beta系数']}
+     '''
+    
+    
+    comparison_text+=f'''
+     请结合当下的宏观经济数据以及我提供给你的微观个股资料，进行由宏观经济周期到微观个股的完整分析。
+     以下为宏观经济数据：
+     1.汇率情况：
+     美元兑人民币:{macro_data['美元兑人民币']},
+     美元兑日元：{macro_data['美元兑日元']},
+     美元兑欧元：{macro_data['美元兑欧元']}。
+     2.联邦基金利率情况：
+     美国联邦基金目标利率情况：{macro_data['联邦基金目标利率']}
+     3.就业数据情况：
+     美国非农就业人数：{ macro_data['非农就业人数']},
+     美国失业率情况：{ macro_data['失业率']},
+     美国平均时薪：{macro_data['平均时薪']}。
+     4.通胀数据：
+     美国通胀数据：{macro_data['通胀数据']}。
+     5.宏观经济数据
+     美国宏观经济数据：{macro_data['GDP数据']}。
+
+     要求：1. 根据收到的宏观经济数据，判断当下所处的宏观经济环境是偏向宽松或是偏向紧缩，并根据通胀数据与就业数据，
+     判断接下来美联储是会缩表或是扩表，即采取宽松的货币政策或是紧缩的货币政策，未来是否为继续降息放水。
+     2.从产业链上下游的角度，为我梳理上述提供的股票之间的产业链关系如何：谁是谁的客户，谁是谁的供应商。
+     3.请结合当下股票价格以及与52周最高价格、52周最低价格及PE比率，并结合上面宏观数据以及未来可能的美国货币政策方向，
+     来判断当下股价是否被高估。
+     4.结合上述宏观及微观信息，回答我，从1-3个月和3-6个月以及2年以上等不同时间范围来看，你推荐投资哪些股票，并写出你的理由。
+     '''
+    
+    messages=[{"role":"system","content":"现在的你的身份是一名兼顾宏观经济周期分析与微观个股研究的顶级对冲基金经理"},
+              {"role":"user","content":comparison_text}]
+    
+    for chunck in ChatLLM.stream(messages):
+        print(chunck.content,end="",flush=True)
+
+if __name__=="__main__":
+    fundamental_macroeconomic_multiple_stock_fundamental_analyze_with_fallback('NVDA','2025-09-25','2025-10-24')
 
 
 
