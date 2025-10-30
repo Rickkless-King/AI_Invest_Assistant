@@ -15,12 +15,32 @@ AI investment assistant based on large language models
 
 
 
+### V2.1版本
+#### 正式开始使用Langchain——将数据获取函数整合到链中
+
+
+### V2.0版本
+#### 正式开始使用Langchain——prompt | llm | parser
+之前我们1.x版本做的事情简单来说就是用f-string的方法将messages中的content替换为宏观经济+微观个股数据。跟我们直接在网页版对话栏中输入宏观经济+微观个股数据没什么特别的差别。从2.0版本开始，开始更多使用Langchain+LangGraph相关内容。
+##### 理解Langchain的LCEL，替代字符串拼接的方式
+  2025年10月30日，汇总一下2天的学习成果：
+  ChatPromptTemplate类：由于OpenAI这类大模型调用API时明确要求带有角色(比如user、system这些词语)，ChatPromptTemplate用于构建聊天格式的提示词模板，支持system、user、assistant等角色。
+  StrOutputParser：输出解析器，将LLM的原始输出解析为字符串格式，方便后续处理。
+  提示词|大模型|StrOUtputParser(字符串格式输出)：通过“|”串联不同组件，构建完整链Chain流程为：prompt格式化输入→llm执行推理→StrOUtputParser解析输出为字符串，这样可以不用再写glue code。注意StrOUtputParser之后已经是字符串类型，而非包含content属性的对象。
+  之前在prompt或者说在messages中通过f-string传入symbol值，但LCEL通过提示词模板（Prompt Template）实现了变量的声明式定义与运行时自动注入，之前使用messages时，是通过列表里面装字典，角色作为key，prompt作为字典的值来实现的，因此用的是冒号。但是在ChatPromptTemplate.from_messages中是元组里面装列表，列表的元素为元组，元组的元素为字符串，通过逗号隔开。
+  RunnablePassthrough：用于在链的不同步骤间传递原始输入或中间结果(类似管道作用，不修改数据，仅负责传递)。
+  "字典1键":lambda x:x["字典键"]：x为RunnablePassthrough中获取的输入，提取"字典键"的value值并将其作为“字典1键”的value值。
+  通过“|”将上一步的输出传入到字典2中，其中prompt里面写的{键}获取的是键对应的value值。然后将大模型输出的连同宏观分析的个股分析结果传入字典2key对应的value值中，最后使用print“[字典2]”方式将结果打印出来。
+  还有一种思路，整个函数定义的时候，直接将symbol、已经获取好的宏微观数据financial_data作为参数传入函数定义中，这样写results的时候直接“symbol”：symbol，“financial_data”：financial_data即可。简单来说就是一个放在函数体内，一个放在函数体外。
+  
+
 ### V1.5版本
 #### 增加多支股票分析-2025年10月28日更新
 通过我们之前的努力已经能够实现获取金融数据的稳健性，但是我们知道不能光看见一颗树木而忽视一篇森林。就像整个AI行业，从上游到下游依次可以分为芯片设计→芯片制造→云服务器厂商→大模型提供商→大模型开发工具(Langchain/n8n/Dify)→下游AI应用(C端/B端)。我们通过微笑曲线知道，不同环节能够获取的收益是不同，因此，我们准备投资某个行业的时候，最好能够把该行业内的相关公司都弄清楚。但是从基本面角度，纯人工收集数据再进行分析往往耗时耗力，但是现在我们可以把输入直接输入到大模型中，让大模型来替我们实现这一功能。
 思路：首先还是定义一个函数获取用户的输入symbol，然后调用Finnhub的company_peer获取同行业其他上市公司，之前我们是通过在定义函数里直接将data传入messages中的方式。我们先all_data=[]→for symbol in symbols:→profile、quote、financials→all_data.append({"":})→comparison_text=f-string(当下宏观环境XXXXX，请对比以下同行业公司的各支股票)→for data in all_data:→comparison_text+=f-string(获取value值)→comparison_text+=f-string(请从当下的宏观经济环境及未来变化趋势、估值水平、风险水平，XXXXX)→messages里面content装comparison_text
-给大家展示一下分析的效果：
-作为一位兼顾**宏观经济周期分析与微观个股研究的顶级对冲基金经理**，我将从你提供的详尽数据出发，进行一场由宏观到微观、由产业逻辑到估值判断、再到投资策略的系统性推演。
+
+   给大家展示一下分析的效果：
+   作为一位兼顾**宏观经济周期分析与微观个股研究的顶级对冲基金经理**，我将从你提供的详尽数据出发，进行一场由宏观到微观、由产业逻辑到估值判断、再到投资策略的系统性推演。
 
 ---
 

@@ -461,7 +461,7 @@ def get_macro_economic_data():
         macro_data['GDP数据']='获取失败'
 
 
-    print("===宏观数据获取完成")
+    print("===宏观数据获取完成===")
     return macro_data
 
 # 测试函数
