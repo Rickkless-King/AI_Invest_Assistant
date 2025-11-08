@@ -15,9 +15,12 @@ AI investment assistant based on large language models
 
 
 
+
 ### V2.1版本
 #### 正式开始使用Langchain——将数据获取函数整合到链中
-
+##### 汇总一下目前的学习成果：usingRunnable_rewrite_get_function.py
+使用了Runnable改写了之前fundamental_analyst中的get_xx函数。理解了最开始的x来自于.invoke({key：value}),可以使用RunnableLambda快速创建Runnable，但缺点是加try except不好写，因此复杂逻辑还是推荐@chain。使用RunnableParallel将Runnable一次性全部传入，因为Runnable传出的是字典，因此采用yy=XXX_function,注意这里不需要传入参数，这样就会输出一个{yy:{XXX_function返回结果}}的字典，再使用一个@chain通过x["yy"]方式获取XXX_function返回结果，并return{"key":.get("")}。
+注意，在prompt中，.from_template("""{名称}""")这里名称不需要加“名称”。
 
 ### V2.0版本
 #### 正式开始使用Langchain——prompt | llm | parser
