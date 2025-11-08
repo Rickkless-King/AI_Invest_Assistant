@@ -94,17 +94,28 @@ A: "我用LCEL构建了多步分析链：
 # 因此，我们需要：对半导体行业其他公司进行分析，然后使用batch并发快速输出
 
 def analyse_stock_with_allPeers(symbol):
-    symbols=get_company_peers(symbol)# symbols因为不用送进chain里，所有没有做Runnable处理，返回一个字符串列表
+    """
+    分析目标股票及其同行业公司，生成一份综合对比分析报告
+
+    Args:
+        symbol: 目标股票代码，如"NVDA"
+
+    输出：
+        一份包含宏观分析+同行业股票对比+投资推荐的综合报告
+    """
+    symbols=get_company_peers(symbol)# 获取同行业公司列表
     print(f"获取到{len(symbols)}家同行业公司：{symbols}")
 
-    # 【关键优化】：宏观数据只获取一次，避免重复调用FRED API触发速率限制
-    print("\n正在获取美国宏观经济数据（只获取一次）...")
+    # 步骤1：获取宏观数据（只获取一次）
+    print("\n【步骤1/3】正在获取美国宏观经济数据...")
     macro_data = get_macro_economic_data()
-    print("✅ 宏观数据获取完成，将应用于所有股票分析\n")
+    print("✅ 宏观数据获取完成\n")
 
-    @chain
-    def fetch_all_stocks_data(x):# 这里还是传入了x={"symbol":"XX"}的形式
-        symbol=x["symbol"]
+    # 步骤2：批量获取所有股票的数据
+    print(f"【步骤2/3】正在批量获取{len(symbols)}家公司的财务数据...")
+
+    def fetch_single_stock_data(symbol):
+        """获取单只股票的数据"""
         try:
             profile=finnhub_client.company_profile2(symbol=symbol)
             real_time_data = finnhub_client.quote(symbol=symbol)
@@ -112,8 +123,9 @@ def analyse_stock_with_allPeers(symbol):
             local_time = datetime.datetime.fromtimestamp(timestamp)
             formatted_local_time = local_time.strftime("%Y-%m-%d %H:%M:%S")
 
+            print(f"  ✓ {symbol} 数据获取成功")
             return{
-                '金融数据来源':'Finnhub',
+                'symbol': symbol,
                 '名称':profile.get('name'),
                 '行业':profile.get('finnhubIndustry'),
                 'ipo时间':profile.get('ipo'),
@@ -128,100 +140,109 @@ def analyse_stock_with_allPeers(symbol):
                 "上述数据的更新时间": formatted_local_time
             }
         except Exception as e:
-            print(f"Finnhub获取{symbol}公司资料失败,原因:{e}")
-            print(f"尝试使用Alpha Vantage获取{symbol}公司资料")
-            av_companyfile=FundamentalData(key=av_api_key,output_format='dict')
-            overview,_=av_companyfile.get_company_overview(symbol)
-            ts = TimeSeries(key=av_api_key, output_format='dict')
-            quote, _ = ts.get_quote_endpoint(symbol)
+            print(f"  ⚠ {symbol} Finnhub失败，尝试Alpha Vantage...")
+            try:
+                av_companyfile=FundamentalData(key=av_api_key,output_format='dict')
+                overview,_=av_companyfile.get_company_overview(symbol)
+                ts = TimeSeries(key=av_api_key, output_format='dict')
+                quote, _ = ts.get_quote_endpoint(symbol)
 
-            return{
-                '金融数据来源':'Alpha Vantage',
-                '名称':overview.get('Name','N/A'),
-                '行业':overview.get('Industry','N/A'),
-                'ipo时间':overview.get('IPODate','N/A'),
-                '市值':float(overview.get('MarketCapitalization',0)),
-                '官网':'N/A',#Alpha Vantage不提供官网
-                '描述':overview.get('Description','N/A'),
-                "最新成交价": float(quote.get('05. price', 0)),
-                "当日最高价": float(quote.get('03. high', 0)),
-                "当日最低价": float(quote.get('04. low', 0)),
-                "当日开盘价": float(quote.get('02. open', 0)),
-                "前一个交易日的收盘价": float(quote.get('08. previous close', 0)),
-                "上述数据的更新时间": quote.get('07. latest trading day', 'N/A')
-            }
+                print(f"  ✓ {symbol} 数据获取成功（备用源）")
+                return{
+                    'symbol': symbol,
+                    '名称':overview.get('Name','N/A'),
+                    '行业':overview.get('Industry','N/A'),
+                    'ipo时间':overview.get('IPODate','N/A'),
+                    '市值':float(overview.get('MarketCapitalization',0)),
+                    '官网':'N/A',
+                    '描述':overview.get('Description','N/A'),
+                    "最新成交价": float(quote.get('05. price', 0)),
+                    "当日最高价": float(quote.get('03. high', 0)),
+                    "当日最低价": float(quote.get('04. low', 0)),
+                    "当日开盘价": float(quote.get('02. open', 0)),
+                    "前一个交易日的收盘价": float(quote.get('08. previous close', 0)),
+                    "上述数据的更新时间": quote.get('07. latest trading day', 'N/A')
+                }
+            except Exception as e2:
+                print(f"  ✗ {symbol} 数据获取失败：{e2}")
+                return None
 
-    # 使用RunnableParallel并行获取所有数据
-    # 【关键修改】：macro使用lambda直接返回已获取的macro_data，而不是重复调用API
-    parallel_fetcher=RunnableParallel(
-        macro=lambda x: macro_data,  # 直接返回已获取的宏观数据，不再重复调用API
-        profile=fetch_all_stocks_data,# RunnableParallel会返回一个字典，其key为macro,其value为fetch_macro_data函数返回的内容
-        symbol=lambda x:x["symbol"]# 这里x即{"symbol":"NVDA"}
-    )
+    # 批量获取所有股票数据
+    all_stocks_data = []
+    for sym in symbols:
+        stock_data = fetch_single_stock_data(sym)
+        if stock_data:
+            all_stocks_data.append(stock_data)
 
-    @chain
-    def merge_all_data(x):# 这里还是要传入参数x
-        macro=x["macro"]# 因为上面的RunnableParallel传出的是一个字典
-        profile=x["profile"]
-        symbol=x["symbol"]
-        return{# 这里直接返回一个字典
-            "symbol":symbol,
-            "名称":profile.get("名称"),
-            "行业":profile.get('行业','N/A'),
-            'ipo时间':profile.get('ipo时间','N/A'),
-            '市值':profile.get('市值',0),
-            '官网':profile.get('官网','N/A'),
-            '描述':profile.get('描述','N/A'),
-            "最新成交价": profile.get('最新成交价', 0),
-            "当日最高价": profile.get('当日最高价', 0),
-            "当日最低价": profile.get('当日最低价', 0),
-            "当日开盘价": profile.get('当日开盘价', 0),
-            "前一个交易日的收盘价": profile.get('前一个交易日的收盘价', 0),
-            "上述数据的更新时间": profile.get('上述数据的更新时间', 'N/A'),
-            "美元兑人民币":macro.get("美元兑人民币"),
-            "美元兑日元":macro.get("美元兑日元"),
-            "美元兑欧元":macro.get("美元兑欧元"),
-            "联邦基金目标利率":macro.get("联邦基金目标利率"),
-            "非农就业人数":str(macro.get("非农就业人数")),
-            "失业率":str(macro.get("失业率")),
-            "平均时薪":str(macro.get("平均时薪")),
-            "通胀数据":str(macro.get("通胀数据")),
-            "GDP数据":str(macro.get("GDP数据"))
-        }
+    print(f"✅ 成功获取{len(all_stocks_data)}/{len(symbols)}家公司数据\n")
 
-    prompt=ChatPromptTemplate.from_template("""
-    现在你的身份是一名顶级对冲基金的基金经理，你非常擅长根据美国宏观经济数据以及具体个股数据来进行投资。
-    目前美国宏观经济数据如下：
-        目前美元兑人民币为{美元兑人民币},美元兑日元为{美元兑日元},美元兑欧元为{美元兑欧元},联邦基金目标利率为{联邦基金目标利率},
-    目前非农就业人数为{非农就业人数},失业率为{失业率},平均时薪为{平均时薪},通胀数据为{通胀数据},GDP数据为{GDP数据}。
-    目前具体个股数据如下：
-        {名称}属于{行业},IPO时间为{ipo时间},市值为{市值}美元，其官网为{官网},最新成交价为{最新成交价},
-    当日开盘最高价为{当日最高价},当日开盘最低价为{当日最低价},当日开盘价为{当日开盘价},前一个交易日的收盘价为{前一个交易日的收盘价}，
-    以上数据更新时间是{上述数据的更新时间}。
+    # 步骤3：构建综合分析的prompt
+    print("【步骤3/3】生成综合对比分析报告...")
 
-    要求:1.根据收到的宏观经济数据，判断当下所处的宏观经济环境是偏向宽松或是偏向紧缩，并根据通胀数据与就业数据，
-     判断接下来美联储是会缩表或是扩表，即采取宽松的货币政策或是紧缩的货币政策，未来是否为继续降息放水。
-    2.结合上面关于宏观经济数据的分析结果,判断当下要分析的公司目前的股价是被高估或是低估，是否应当买入。
-    3.逻辑清晰，表达有条理，数据需要基于事实，未来判断要基于历史数据。从宏观经济到微观个股进行自上而下的梳理。
-    4.分析要简洁明了，重点突出，每只股票的分析控制在500字以内。
-    """)
+    # 构建公司对比信息文本
+    companies_comparison = ""
+    for idx, stock in enumerate(all_stocks_data, 1):
+        companies_comparison += f"""
+【公司{idx}】{stock['symbol']} - {stock['名称']}
+  - 市值：{stock['市值']:.2f}百万美元
+  - 最新成交价：${stock['最新成交价']}
+  - 涨跌幅：{((stock['最新成交价'] - stock['前一个交易日的收盘价']) / stock['前一个交易日的收盘价'] * 100):.2f}%
+  - 当日最高价：${stock['当日最高价']}
+  - 当日最低价：${stock['当日最低价']}
+  - IPO时间：{stock['ipo时间']}
+  - 数据更新时间：{stock['上述数据的更新时间']}
+"""
 
-    full_chain=parallel_fetcher|merge_all_data|prompt|llm|StrOutputParser()
+    # 综合分析prompt
+    comprehensive_prompt = f"""
+现在你的身份是一名顶级对冲基金的基金经理，你非常擅长根据美国宏观经济数据以及同行业多家公司的对比分析来进行投资决策。
 
-    # 【关键修复1】：这里是最重要的修复 - 使用列表推导式创建字典列表
-    print(f"\n开始批量分析{len(symbols)}只股票...")
-    results=full_chain.batch([{"symbol":x} for x in symbols])  # 修复：从 {"symbol":x for x in symbols} 改为 [{"symbol":x} for x in symbols]
+## 一、美国宏观经济数据
+- 美元兑人民币：{macro_data.get("美元兑人民币")}
+- 美元兑日元：{macro_data.get("美元兑日元")}
+- 美元兑欧元：{macro_data.get("美元兑欧元")}
+- 联邦基金目标利率：{macro_data.get("联邦基金目标利率")}
+- 非农就业人数：{macro_data.get("非农就业人数")}
+- 失业率：{macro_data.get("失业率")}
+- 平均时薪：{macro_data.get("平均时薪")}
+- 通胀数据：{macro_data.get("通胀数据")}
+- GDP数据：{macro_data.get("GDP数据")}
 
-    # 【关键修复2】：修复zip语法和变量名拼写
-    print("\n" + "="*80)
-    print("批量分析结果：")
-    print("="*80 + "\n")
-    for company, result in zip(symbols, results):  # 修复：从 zip[tuple[str,str]] 改为 zip，从 coampany 改为 company
-        print(f"\n{'='*80}")
-        print(f"【{company}】分析报告：")
-        print(f"{'='*80}")
-        print(result)
-        print(f"\n{'='*80}\n")
+## 二、同行业公司数据对比
+{companies_comparison}
+
+## 分析要求
+请按照以下结构输出一份综合投资分析报告：
+
+### 第一部分：宏观经济环境分析（300字左右）
+1. 判断当前美国宏观经济环境是偏向宽松还是紧缩
+2. 根据通胀数据、就业数据和利率水平，预判美联储未来货币政策走向（扩表/缩表、降息/加息）
+3. 分析当前宏观环境对{all_stocks_data[0]['行业']}行业的影响
+
+### 第二部分：同行业公司横向对比分析（500字左右）
+1. 对比以上{len(all_stocks_data)}家公司的市值规模、股价表现
+2. 分析各公司的相对估值水平（基于市值和股价波动）
+3. 指出哪些公司表现强势、哪些相对疲软
+
+### 第三部分：投资建议（200字左右）
+1. 结合宏观环境和公司对比，明确推荐1-2只最值得投资的股票
+2. 说明推荐理由（基于宏观趋势、行业地位、估值水平等）
+3. 给出具体的操作建议（买入/观望/等待回调）
+
+注意：
+- 逻辑清晰，表达有条理
+- 数据判断基于事实，未来预测基于历史规律
+- 自上而下的分析框架：宏观→行业→个股
+"""
+
+    # 直接调用LLM生成综合报告
+    response = llm.invoke(comprehensive_prompt)
+
+    print("\n" + "="*100)
+    print("【综合投资分析报告】")
+    print("="*100 + "\n")
+    print(response.content)
+    print("\n" + "="*100)
 
 if __name__=="__main__":
     analyse_stock_with_allPeers("NVDA")
