@@ -97,6 +97,11 @@ def analyse_stock_with_allPeers(symbol):
     symbols=get_company_peers(symbol)# symbols因为不用送进chain里，所有没有做Runnable处理，返回一个字符串列表
     print(f"获取到{len(symbols)}家同行业公司：{symbols}")
 
+    # 【关键优化】：宏观数据只获取一次，避免重复调用FRED API触发速率限制
+    print("\n正在获取美国宏观经济数据（只获取一次）...")
+    macro_data = get_macro_economic_data()
+    print("✅ 宏观数据获取完成，将应用于所有股票分析\n")
+
     @chain
     def fetch_all_stocks_data(x):# 这里还是传入了x={"symbol":"XX"}的形式
         symbol=x["symbol"]
@@ -146,13 +151,10 @@ def analyse_stock_with_allPeers(symbol):
                 "上述数据的更新时间": quote.get('07. latest trading day', 'N/A')
             }
 
-    @chain
-    def fetch_macro_data(x):
-        return get_macro_economic_data()
-
     # 使用RunnableParallel并行获取所有数据
+    # 【关键修改】：macro使用lambda直接返回已获取的macro_data，而不是重复调用API
     parallel_fetcher=RunnableParallel(
-        macro=fetch_macro_data,# 这里不需要传入参数，因为RunnableParallel会自动把输入数据给到Runnable
+        macro=lambda x: macro_data,  # 直接返回已获取的宏观数据，不再重复调用API
         profile=fetch_all_stocks_data,# RunnableParallel会返回一个字典，其key为macro,其value为fetch_macro_data函数返回的内容
         symbol=lambda x:x["symbol"]# 这里x即{"symbol":"NVDA"}
     )
