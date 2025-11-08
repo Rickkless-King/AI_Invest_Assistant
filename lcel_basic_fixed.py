@@ -311,12 +311,15 @@ def rewrite_get_functions():
         | StrOutputParser()   # 解析输出
     )
 
-    # 8. 执行
+    # 8. 执行（使用流式输出）
     print("=" * 50)
     print("开始分析...")
     print("=" * 50)
-    result = full_chain.invoke({"symbol": "NVDA"})
-    print(result)
+    print("\n【分析结果】")
+    # 使用 .stream() 方法实现流式输出
+    for chunk in full_chain.stream({"symbol": "NVDA"}):
+        print(chunk, end="", flush=True)  # end="" 避免换行，flush=True 立即输出
+    print("\n" + "=" * 50)
 
 
 # ==================== 测试所有示例 ====================
