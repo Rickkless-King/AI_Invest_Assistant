@@ -328,3 +328,230 @@ def analyse_stock_with_allPeers(symbol):
 
 if __name__=="__main__":
     analyse_stock_with_allPeers("NVDA")
+
+# ============================================================================
+# 学习版本：你自己写的函数（已修复所有错误）
+# ============================================================================
+def comprehensive_analyze_allStocks(symbol):
+    """
+    你自己编写的LCEL分析函数（修复版）
+
+    学习要点：
+    1. **inputs字典的键名要匹配**
+    2. format_stock_report 需要 @chain 装饰器
+    3. 变量名要一致（stock_comparison vs companies_comparison）
+    4. return要在for循环外部
+    5. 宏观数据只获取一次
+    """
+
+    # 步骤1：使用@chain装饰器获取同行业公司列表
+    @chain
+    def get_peer_companies(inputs):
+        target_symbol = inputs["symbol"]
+        peers = get_company_peers(target_symbol)
+        print(f"获取到{len(peers)}家同行业公司:包括{peers}")
+        return {
+            "symbol": target_symbol,  # ✅ 手动构建字典返回
+            "peers": peers
+        }
+
+    # 步骤2：使用@chain获取宏观数据（只获取一次）
+    @chain
+    def fetch_macro_data(inputs):
+        """获取宏观经济数据"""
+        print("\n【步骤1/3】正在获取美国宏观经济数据...")
+        macro = get_macro_economic_data()
+        print("✅ 宏观数据获取完成\n")
+
+        # **inputs 是字典解包语法，相当于把 inputs 的所有键值对展开
+        # 例如：inputs={"symbol":"NVDA", "peers":[...]}
+        # 则 {**inputs, "macro": macro} 等价于 {"symbol":"NVDA", "peers":[...], "macro": macro}
+        return {**inputs, "macro": macro}  # ✅ 保留原有数据，添加新的macro字段
+
+    # 步骤3：使用@chain装饰器+batch并行获取所有股票数据
+    @chain
+    def fetch_single_stock_with_fallback(inputs):
+        """获取单只股票数据，支持fallback"""
+        symbol = inputs["symbol"]
+        try:
+            profile = finnhub_client.company_profile2(symbol=symbol)
+            real_time_data = finnhub_client.quote(symbol=symbol)
+            timestamp = real_time_data.get('t')
+            local_time = datetime.datetime.fromtimestamp(timestamp)
+            formatted_local_time = local_time.strftime("%Y-%m-%d %H:%M:%S")
+
+            print(f"  ✓ {symbol} 数据获取成功")
+            return {
+                'symbol': symbol,
+                '名称': profile.get('name'),
+                '行业': profile.get('finnhubIndustry'),
+                'ipo时间': profile.get('ipo'),
+                '市值': float(profile.get('marketCapitalization', 0)),
+                '官网': profile.get('weburl'),
+                '描述': profile.get('description'),
+                "最新成交价": real_time_data.get('c'),
+                "当日最高价": real_time_data.get('h'),
+                "当日最低价": real_time_data.get('l'),
+                "当日开盘价": real_time_data.get('o'),
+                "前一个交易日的收盘价": real_time_data.get('pc'),
+                "上述数据的更新时间": formatted_local_time
+            }
+        except Exception as e:
+            print(f"  ⚠ {symbol} Finnhub失败,原因{e}，尝试Alpha Vantage...")
+            try:
+                av_companyfile = FundamentalData(key=av_api_key, output_format='dict')
+                overview, _ = av_companyfile.get_company_overview(symbol)
+                ts = TimeSeries(key=av_api_key, output_format='dict')
+                quote, _ = ts.get_quote_endpoint(symbol)
+
+                print(f"  ✓ {symbol} 数据获取成功（备用源）")
+                return {
+                    'symbol': symbol,
+                    '名称': overview.get('Name', 'N/A'),
+                    '行业': overview.get('Industry', 'N/A'),
+                    'ipo时间': overview.get('IPODate', 'N/A'),
+                    '市值': float(overview.get('MarketCapitalization', 0)),
+                    '官网': 'N/A',
+                    '描述': overview.get('Description', 'N/A'),
+                    "最新成交价": float(quote.get('05. price', 0)),
+                    "当日最高价": float(quote.get('03. high', 0)),
+                    "当日最低价": float(quote.get('04. low', 0)),
+                    "当日开盘价": float(quote.get('02. open', 0)),
+                    "前一个交易日的收盘价": float(quote.get('08. previous close', 0)),
+                    "上述数据的更新时间": quote.get('07. latest trading day', 'N/A')
+                }
+            except Exception as e1:
+                print(f"  ✗ {symbol}数据获取失败：原因是{e1}")
+                return None
+
+    @chain
+    def batch_all_stock(inputs):
+        """使用batch并行获取所有股票数据"""
+        peers = inputs["peers"]
+        print(f"【步骤2/3】正在批量获取{len(peers)}家公司的财务数据...")
+
+        # 关键：使用batch()并行处理所有股票
+        stock_inputs = [{"symbol": s} for s in peers]  # ✅ 列表推导式构建输入
+        all_results = fetch_single_stock_with_fallback.batch(stock_inputs)
+
+        # 过滤失败的结果
+        all_stock_data = [x for x in all_results if x is not None]
+        print(f'✅ 成功获取{len(all_stock_data)}/{len(peers)}家公司的数据\n')
+
+        return {**inputs, "stocks": all_stock_data}  # ✅ 注意这里是 "stocks"
+
+    # 步骤4：使用@chain装饰器格式化数据（你原代码缺少了@chain）
+    @chain  # ✅ 修复1：添加 @chain 装饰器
+    def format_stock_report(inputs):
+        """格式化股票对比数据为Prompt所需格式"""
+        stocks = inputs["stocks"]  # ✅ 修复2：改为 inputs["stocks"] 而不是 inputs["symbol"]
+        macro = inputs["macro"]
+
+        # 构建股票对比信息
+        stock_comparison = ""  # ✅ 修复3：变量名保持一致
+        for idx, stock in enumerate(stocks, 1):
+            change_pct = ((stock['最新成交价'] - stock['前一个交易日的收盘价']) /
+                         stock['前一个交易日的收盘价'] * 100)
+            stock_comparison += f"""
+【公司{idx}】{stock['symbol']} - {stock['名称']}
+  - 市值：{stock['市值']:.2f}百万美元
+  - 最新成交价：${stock['最新成交价']}
+  - 涨跌幅：{change_pct:.2f}%
+  - 当日最高价：${stock['当日最高价']}
+  - 当日最低价：${stock['当日最低价']}
+  - IPO时间：{stock['ipo时间']}
+  - 数据更新时间：{stock['上述数据的更新时间']}
+"""
+
+        # ✅ 修复4：return 在 for 循环外部
+        return {
+            "美元兑人民币": macro.get("美元兑人民币"),
+            "美元兑日元": macro.get("美元兑日元"),
+            "美元兑欧元": macro.get("美元兑欧元"),
+            "联邦基金目标利率": macro.get("联邦基金目标利率"),
+            "非农就业人数": macro.get("非农就业人数"),
+            "失业率": macro.get("失业率"),
+            "平均时薪": macro.get("平均时薪"),
+            "通胀数据": macro.get("通胀数据"),
+            "GDP数据": macro.get("GDP数据"),
+            "公司对比数据": stock_comparison,  # ✅ 变量名一致
+            "行业名称": stocks[0]['行业'] if stocks else 'N/A',
+            "公司数量": len(stocks)
+        }
+
+    # 步骤5：使用ChatPromptTemplate构建格式化Prompt
+    prompt = ChatPromptTemplate.from_template("""
+现在你的身份是一名顶级对冲基金的基金经理，你非常擅长根据美国宏观经济数据以及同行业多家公司的对比分析来进行投资决策。
+
+## 一、美国宏观经济数据
+- 美元兑人民币：{美元兑人民币}
+- 美元兑日元：{美元兑日元}
+- 美元兑欧元：{美元兑欧元}
+- 联邦基金目标利率：{联邦基金目标利率}
+- 非农就业人数：{非农就业人数}
+- 失业率：{失业率}
+- 平均时薪：{平均时薪}
+- 通胀数据：{通胀数据}
+- GDP数据：{GDP数据}
+
+## 二、同行业公司数据对比
+{公司对比数据}
+
+## 分析要求
+请按照以下结构输出一份综合投资分析报告：
+
+### 第一部分：宏观经济环境分析
+1. 判断当前美国宏观经济环境是偏向宽松还是紧缩
+2. 根据通胀数据、就业数据和利率水平，预判美联储未来货币政策走向（扩表/缩表、降息/加息）
+3. 分析当前宏观环境对{行业名称}行业的影响
+
+### 第二部分：同行业公司横向对比分析
+1. 对比以上{公司数量}家公司的市值规模、股价表现
+2. 分析各公司的相对估值水平（基于市值和股价波动）
+3. 指出哪些公司表现强势、哪些相对疲软
+
+### 第三部分：投资建议
+1. 结合宏观环境和公司对比，明确推荐1-2只最值得投资的股票
+2. 说明推荐理由（基于宏观趋势、行业地位、估值水平等）
+3. 给出具体的操作建议（买入/观望/等待回调）
+
+注意：
+- 逻辑清晰，表达有条理
+- 数据判断基于事实，未来预测基于历史规律
+- 自上而下的分析框架：宏观→行业→个股
+""")
+
+    # 步骤6：使用管道操作符|构建完整的LCEL链
+    print("【步骤3/3】构建LCEL分析链并生成综合对比分析报告...\n")
+
+    full_chain = (
+        get_peer_companies
+        | fetch_macro_data
+        | batch_all_stock
+        | format_stock_report
+        | prompt
+        | llm
+        | StrOutputParser()
+    )
+
+    # 步骤7：执行LCEL链（使用流式输出）
+    print("="*100)
+    print("【综合投资分析报告 - 流式输出】")
+    print("="*100 + "\n")
+
+    for chunk in full_chain.stream({"symbol": symbol}):
+        print(chunk, end="", flush=True)
+
+    print("\n" + "="*100)
+    print("\n✅ 你的LCEL代码已成功运行！")
+    print("\n📚 关键修复点总结：")
+    print("  1. ✅ format_stock_report 添加了 @chain 装饰器")
+    print("  2. ✅ stocks = inputs['stocks'] 而不是 inputs['symbol']")
+    print("  3. ✅ 变量名统一为 stock_comparison")
+    print("  4. ✅ return 语句移到 for 循环外部")
+    print("  5. ✅ 理解了 **inputs 字典解包语法的作用")
+    print("="*100)
+
+# 测试你自己写的函数（取消注释即可运行）
+# if __name__=="__main__":
+#     comprehensive_analyze_allStocks("NVDA")
