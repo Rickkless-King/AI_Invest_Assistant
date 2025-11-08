@@ -13,7 +13,10 @@ AI investment assistant based on large language models
 本项目（及作者）对用户因滥用 API 密钥而导致的任何后果（如账户被封）概不负责。
 ============================================================================
 
-
+### v2.2版本
+#### 根据LCEL语法实现多股票并行分析——usingRunnable_multiStock_Analysis.py
+首先还是理解.batch([字典1,字典2,...])相较于.invoke({字典1})的方式能够快很多，学到了.batch([{"symbol":x} for x in X])或者.batch(["symbol":symbol])的方法，思路上还是将普通函数变成Runnable，传入字典，然后x[key]的方式获取对应的symbol值。
+实践了异步函数async def的定义，包括异步流式输出，但是目前没用上。相较于之前使用变量=get_xxx的方式，即把之前get_xxx函数的返回值仅仅用一个简单的变量装，实践了如何return{}返回，并且学习了**inputs写法，让自己节省了点时间。我之前是通过两个函数分别来获取股票介绍+股票数据，这次尝试合二为一。接着使用列表推导式[{"symbol":x} for x in peers]来获取构建所有股票的列表字典。接着还是使用空字符串+循环+  空字符串+="XXXXX" 的方式获取全部股票的信息。
 
 
 ### V2.1版本
