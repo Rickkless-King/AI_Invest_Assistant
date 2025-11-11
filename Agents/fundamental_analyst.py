@@ -20,7 +20,7 @@
 
 # Langchain相关库
 from langchain_openai import ChatOpenAI
-from langchain.schema import HumanMessage,FunctionMessage
+from langchain_core.messages import HumanMessage,FunctionMessage
 # 系统、环境变量、时间等库
 import os
 from dotenv import load_dotenv

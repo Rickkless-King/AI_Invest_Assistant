@@ -13,6 +13,13 @@ AI investment assistant based on large language models
 本项目（及作者）对用户因滥用 API 密钥而导致的任何后果（如账户被封）概不负责。
 ============================================================================
 
+### v2.3版本
+### 理解Tool和Agent——tools_and_agents.py
+之前我们已经学习了Langchain1的LCEL语法，核心是把普通函数通过装饰器@chain或者RunnableLambda改写为Runnable。以便使用|快速传递数据。学习了.invoke/.batch/.stream方法存入{字典}、[{"symbol":x} for x in ]列表推导式。学习了RunnableParallel()方法，变量=get_xx函数，最终传出为{"变量":{get_xx函数返回的结果字典}}，但是到目前为止，我们只是通过Langchain获取了金融数据源，然后送进了LLM里面，本质上和我们将所有字符串传入data变量→data变量送进messages→.invoke(messages)没有太大的差别，接下来我们学习Langchain中的@chain，以及Agent概念。
+这次修改的内容比较多，我们按照因果逻辑来说：首先是之前Claude提供给我的AgentExecutor、create_tool_calling_agent显示已经被Langchain弃用，因此需要from langgraph.prebuilt import create_react_agent，这个时候我们就需要pip install langgraph，但是我在VScode中pip install langgraph时，安装langgraph时，它依赖langchain-core>=0.1，并且自动将langchain-core升级到了1.0.4（因为这是当前满足条件的最新版本）。但是之前已安装的langchain 0.3.27明确要求langchain-core<1.0.0（即不支持 1.0.0 及以上版本）。同时，langchain-openai 0.3.35也要求langchain-core<1.0.0，同样与升级后的langchain-core 1.0.4不兼容。因此，pip的依赖解析器无法同时满足langgraph对langchain-core的高版本要求和langchain/langchain-openai对langchain-core的低版本限制，导致了 “dependency conflicts”（依赖冲突）错误。所以我们选择pip install --upgrade langchain langchain-openai，升级langchain和langchain-openai到支持langchain-core 1.0.0+的版本。接着pip freeze > requirements.txt将requirements.txt进行了更新，更新之后就发现fundamental_anlyst.py文件中的from langchain.schema import HumanMessage, FunctionMessage无法解析导入，于是我们将修改为from langchain_core.messages import HumanMessage,FunctionMessage。但是我们tools_and_agents.py文件里from langgraph.prebuilt import create_react_agent报错说函数create_react_agent已经被弃用，于是我们将其修改为from langgraph.prebuilt import create_tool_calling_agent。修改到这里还是要确认一下，究竟应该使用哪一个？怎么使用？
+    本次未完整更新v2.3版本，后续将继续更新v2.3版本
+
+
 ### v2.2版本
 #### 根据LCEL语法实现多股票并行分析——usingRunnable_multiStock_Analysis.py
 首先还是理解.batch([字典1,字典2,...])相较于.invoke({字典1})的方式能够快很多，学到了.batch([{"symbol":x} for x in X])或者.batch(["symbol":symbol])的方法，思路上还是将普通函数变成Runnable，传入字典，然后x[key]的方式获取对应的symbol值。
