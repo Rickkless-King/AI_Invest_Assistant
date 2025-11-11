@@ -5,8 +5,7 @@
 
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent  # LangChain 1.0 新 API
 import os
 
 
@@ -135,11 +134,11 @@ def test_basic_agent():
 
 请根据用户的问题，选择合适的工具来回答。"""
 
-    # 创建 Agent
-    agent = create_react_agent(
+    # 创建 Agent - 使用 LangChain 1.0 新 API
+    agent = create_agent(
         model=llm,
         tools=tools,
-        state_modifier=system_message
+        system_prompt=system_message  # 注意：参数名改为 system_prompt
     )
 
     # 测试问题
@@ -147,17 +146,22 @@ def test_basic_agent():
     print(f"\n📝 用户问题: {question}\n")
 
     try:
-        # 调用 Agent
+        # 调用 Agent - 使用字典格式
         result = agent.invoke({
-            "messages": [HumanMessage(content=question)]
+            "messages": [{"role": "user", "content": question}]
         })
 
         # 提取最终回答
         final_message = result["messages"][-1]
+        # 兼容字典和对象格式
+        if isinstance(final_message, dict):
+            final_content = final_message.get("content", "")
+        else:
+            final_content = final_message.content
         print("\n" + "="*70)
         print("✅ Agent 回答:")
         print("="*70)
-        print(final_message.content)
+        print(final_content)
         print("="*70 + "\n")
     except Exception as e:
         print(f"\n❌ 错误: {e}\n")
@@ -188,11 +192,11 @@ def test_investment_agent():
 
 请一步步思考，使用合适的工具获取数据后再进行分析。"""
 
-    # 创建 Agent
-    agent = create_react_agent(
+    # 创建 Agent - 使用 LangChain 1.0 新 API
+    agent = create_agent(
         model=llm,
         tools=tools,
-        state_modifier=system_message
+        system_prompt=system_message  # 注意：参数名改为 system_prompt
     )
 
     # 测试问题
@@ -200,27 +204,40 @@ def test_investment_agent():
     print(f"\n📝 用户问题: {question}\n")
 
     try:
-        # 调用 Agent
+        # 调用 Agent - 使用字典格式
         result = agent.invoke({
-            "messages": [HumanMessage(content=question)]
+            "messages": [{"role": "user", "content": question}]
         })
 
         # 提取并显示思考过程
         print("\n⚙️  Agent 思考与工具调用过程:\n")
         for i, msg in enumerate(result["messages"]):
-            if isinstance(msg, HumanMessage):
-                print(f"👤 用户: {msg.content}")
-            elif hasattr(msg, 'tool_calls') and msg.tool_calls:
-                for tool_call in msg.tool_calls:
-                    print(f"\n🔧 Agent 调用工具: {tool_call['name']}")
-                    print(f"   参数: {tool_call['args']}")
+            if isinstance(msg, dict):
+                role = msg.get("role", "")
+                if role == "user":
+                    print(f"👤 用户: {msg.get('content', '')}")
+                elif role == "assistant" and "tool_calls" in msg:
+                    for tool_call in msg.get("tool_calls", []):
+                        print(f"\n🔧 Agent 调用工具: {tool_call.get('name', 'unknown')}")
+                        print(f"   参数: {tool_call.get('args', {})}")
+            elif hasattr(msg, 'type'):
+                if msg.type == "human":
+                    print(f"👤 用户: {msg.content}")
+                elif hasattr(msg, 'tool_calls') and msg.tool_calls:
+                    for tool_call in msg.tool_calls:
+                        print(f"\n🔧 Agent 调用工具: {tool_call.get('name', 'unknown')}")
+                        print(f"   参数: {tool_call.get('args', {})}")
 
         # 最终回答
         final_message = result["messages"][-1]
+        if isinstance(final_message, dict):
+            final_content = final_message.get("content", "")
+        else:
+            final_content = final_message.content
         print("\n" + "="*70)
         print("📊 最终分析结果:")
         print("="*70)
-        print(final_message.content)
+        print(final_content)
         print("="*70 + "\n")
     except Exception as e:
         print(f"\n❌ 错误: {e}\n")

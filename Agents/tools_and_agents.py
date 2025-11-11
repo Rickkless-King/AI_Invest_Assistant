@@ -1,8 +1,6 @@
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent  # LangChain 1.0 新 API
 import os
 from dotenv import load_dotenv
 from fundamental_analyst import *
@@ -78,21 +76,21 @@ def basic_agent_example():
 
 请根据用户的问题，选择合适的工具来回答。"""
 
-    # 3.使用 LangGraph 创建 ReAct agent
-    # create_react_agent 自动处理工具调用循环
-    agent_executor = create_react_agent(
+    # 3.使用 LangChain 1.0 新 API 创建 Agent
+    # create_agent 是官方推荐的方式，底层使用 LangGraph
+    agent = create_agent(
         model=llm,
         tools=tools,
-        state_modifier=system_message  # 系统提示词
+        system_prompt=system_message  # 注意：参数名改为 system_prompt
     )
 
     # 4.测试
     user_input = "NVDA的价格是多少？如果EPS是3.5，PE比率是多少？"
     print(f"\n用户问题: {user_input}\n")
 
-    # invoke 返回一个包含消息列表的字典
-    result = agent_executor.invoke({
-        "messages": [HumanMessage(content=user_input)]
+    # invoke 使用消息字典格式
+    result = agent.invoke({
+        "messages": [{"role": "user", "content": user_input}]
     })
 
     # 提取最终回答（最后一条 AI 消息）
@@ -213,11 +211,11 @@ def invest_analyze_agent():
 
 请一步步思考，使用合适的工具获取数据后再进行分析。"""
 
-    # 使用 LangGraph 创建 ReAct agent
-    agent_executor = create_react_agent(
+    # 使用 LangChain 1.0 新 API 创建 Agent
+    agent = create_agent(
         model=llm,
         tools=tools,
-        state_modifier=system_message
+        system_prompt=system_message  # 注意：参数名改为 system_prompt
     )
 
     # 用户问题
@@ -230,32 +228,54 @@ def invest_analyze_agent():
     print("="*70)
     print("\n⚙️  Agent 思考与工具调用过程:\n")
 
-    # 调用 agent
-    result = agent_executor.invoke({
-        "messages": [HumanMessage(content=user_question)]
+    # 调用 agent - 使用字典格式
+    result = agent.invoke({
+        "messages": [{"role": "user", "content": user_question}]
     })
 
     # 打印所有消息以显示思考过程
     for i, msg in enumerate(result["messages"]):
-        if isinstance(msg, HumanMessage):
-            print(f"\n👤 用户: {msg.content}")
-        elif isinstance(msg, AIMessage):
-            if hasattr(msg, 'tool_calls') and msg.tool_calls:
-                # AI 调用工具
-                for tool_call in msg.tool_calls:
-                    print(f"\n🔧 Agent 调用工具: {tool_call['name']}")
-                    print(f"   参数: {tool_call['args']}")
-            elif msg.content:
-                # AI 的最终回答或中间思考
-                if i == len(result["messages"]) - 1:
-                    # 最后一条消息是最终答案
-                    print("\n" + "="*70)
-                    print("📊 最终分析结果:")
-                    print("="*70)
-                    print(f"\n{msg.content}\n")
-                    print("="*70)
-                else:
-                    print(f"\n💭 Agent 思考: {msg.content}")
+        # 处理字典格式的消息
+        if isinstance(msg, dict):
+            role = msg.get("role", "")
+            content = msg.get("content", "")
+
+            if role == "user":
+                print(f"\n👤 用户: {content}")
+            elif role == "assistant":
+                # 检查是否有工具调用
+                if "tool_calls" in msg and msg["tool_calls"]:
+                    for tool_call in msg["tool_calls"]:
+                        print(f"\n🔧 Agent 调用工具: {tool_call.get('name', 'unknown')}")
+                        print(f"   参数: {tool_call.get('args', {})}")
+                elif content:
+                    if i == len(result["messages"]) - 1:
+                        print("\n" + "="*70)
+                        print("📊 最终分析结果:")
+                        print("="*70)
+                        print(f"\n{content}\n")
+                        print("="*70)
+                    else:
+                        print(f"\n💭 Agent 思考: {content}")
+        # 兼容性处理：如果返回的是消息对象
+        else:
+            if hasattr(msg, 'type'):
+                if msg.type == "human":
+                    print(f"\n👤 用户: {msg.content}")
+                elif msg.type == "ai":
+                    if hasattr(msg, 'tool_calls') and msg.tool_calls:
+                        for tool_call in msg.tool_calls:
+                            print(f"\n🔧 Agent 调用工具: {tool_call.get('name', 'unknown')}")
+                            print(f"   参数: {tool_call.get('args', {})}")
+                    elif msg.content:
+                        if i == len(result["messages"]) - 1:
+                            print("\n" + "="*70)
+                            print("📊 最终分析结果:")
+                            print("="*70)
+                            print(f"\n{msg.content}\n")
+                            print("="*70)
+                        else:
+                            print(f"\n💭 Agent 思考: {msg.content}")
 
     print("\n✅ 分析完成！\n")
 
