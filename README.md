@@ -12,6 +12,70 @@ AI investment assistant based on large language models
 
 本项目（及作者）对用户因滥用 API 密钥而导致的任何后果（如账户被封）概不负责。
 ============================================================================
+### v2.5版本（2025年1月）
+#### 🚀 LangGraph多Agent对话系统 - 进阶教程
+本次更新基于LangGraph 1.0+和LangChain 1.0+最新API，重点讲解多Agent互相对话和协作。
+
+**新增文件：**
+1. **langgraph_advanced_tutorial.py** - 完整的LangGraph进阶教程
+   - Day 15-16: State和Graph基础（使用最新API）
+   - Day 17-18: 创建第一个投资分析Graph
+   - Day 19-20: 投资分析工作流实战
+   - Day 21-22: 条件分支（高PE深度分析 vs 低PE快速评估）
+   - Day 23-24: 循环和Memory（Agent自动调用工具）
+   - Day 25-28: ⭐ 多Agent对话 - Supervisor监督者模式（核心！）
+   - Day 29-30: 完整投资分析系统架构设计
+
+2. **TUTORIAL_CHANGELOG.md** - 详细的API更新说明
+   - 对比原教程与2025最新版的差异
+   - 说明哪些API已弃用及替代方案
+   - 如何应用到现有项目的指导
+
+3. **QUICK_START.md** - 5分钟快速开始指南
+   - 快速运行教程示例
+   - 分阶段学习路径
+   - 常见问题解答
+
+**核心更新：**
+- ✅ 使用 `from langchain.agents import create_agent`（替代已弃用的create_react_agent）
+- ✅ 使用 `Annotated[list, add_messages]` 定义消息列表（替代字符串注解）
+- ✅ 使用 `START` 和 `END` 常量（替代set_entry_point）
+- ✅ 实现Supervisor监督者模式的多Agent协作
+- ✅ 包含宏观分析、基本面分析、估值分析三个专家Agent示例
+
+**多Agent架构（Supervisor模式）：**
+```
+用户问题 → Supervisor（决策中心）
+             │
+    ┌────────┼────────┐
+    ▼        ▼        ▼
+宏观分析  基本面   估值分析
+  专家    分析专家    专家
+```
+
+**快速开始：**
+```bash
+# 运行完整教程
+python Agents/langgraph_advanced_tutorial.py
+
+# 查看更新说明
+cat Agents/TUTORIAL_CHANGELOG.md
+
+# 查看快速指南
+cat Agents/QUICK_START.md
+```
+
+**学习收获：**
+- 掌握LangGraph的State、Graph、Node、Edge核心概念
+- 理解条件分支和循环的实现方式
+- 学会构建多Agent协作系统
+- 了解Supervisor、Router、Network三种多Agent架构模式
+- 能够将理论应用到实际投资分析项目
+
+**下一步计划：**
+- Week 7-8: Checkpointing（状态持久化）、Human-in-the-loop（人工干预）
+- Week 9-10: LangSmith追踪调试、性能优化、生产环境部署
+
 ### v2.4版本
 
 
