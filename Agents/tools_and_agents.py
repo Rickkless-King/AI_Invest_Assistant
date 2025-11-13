@@ -5,7 +5,8 @@ from langchain_openai import ChatOpenAI
 # 推荐使用LangGraph
 from langgraph.prebuilt import create_react_agent
 # 在LangGraph1.0+版本中，create_react_agent已经被弃用，官方推荐使用create_tool_calling_agent作为替代方案。
-from langgraph.prebuilt import create_tool_calling_agent# 我import create_tool_calling_agent 但是提示未存取
+# from langgraph.prebuilt import create_tool_calling_agent 也已被弃用
+from langchain.agents import create_agent# 现在官方推荐使用create_agent
 from langchain_core.prompts import ChatPromptTemplate
 import os
 from dotenv import load_dotenv
@@ -39,7 +40,7 @@ def old_way():
 # tool方式
 # Langchain中Tool是被标准化的函数/API，要求：1.必须用@tool装饰器标记，2.输入参数要求写明类型注解(symbol:str)3.要么写显式docstring，要么在@tool("写介绍")
 # 3.输出需要是结构化结果(如字符串、字典),方便Agent后续整理回答，具体完整规范如下：
-@tool
+# @tool
 # def tool_name(para1:Type1,para2:Type2)->ReturnType:
 #     """
 #     [必需]工具的描述 - 告诉LLM这个工具是干什么的
@@ -57,32 +58,43 @@ def old_way():
 #     # 必须有docstring或在装饰器中提供description
 #     return actual_function(para1,para2)
 
-# 将之前的get_company_profile_with_fallback(symbol:str)->dict改为tool
-@tool
-def get_company_profile_with_fallback(symbol:str)->str:
-    """
-    获取上市公司基本信息
-    通过股票代码获取公司的名称、行业、ipo时间、市值、官网、描述等基本信息
-    会自动在Finnhub和Alpha Vantage两个数据源之间切换以确保成功获取数据
+#将之前的get_company_profile_with_fallback(symbol:str)->dict改为tool
+# @tool
+# def get_company_profile_with_fallback(symbol:str)->str:
+#     """
+#     获取上市公司基本信息
+#     通过股票代码获取公司的名称、行业、ipo时间、市值、官网、描述等基本信息
+#     会自动在Finnhub和Alpha Vantage两个数据源之间切换以确保成功获取数据
 
-    参数：
-       symbol:股票代码(大写),例如"NVDA"、"BMNR"、"MU"
+#     参数：
+#        symbol:股票代码(大写),例如"NVDA"、"BMNR"、"MU"
     
-    返回：
-        包含以下字段的字典：
-        -名称:公司名称
-        -行业：公司所属行业
-        -ipo时间:公司IPO日期
-        -市值:市值(百万美元)
-        -官网:公司官网
-        -描述:公司的描述
-    """
-    # 注意，这里只是调用原函数，不需要重写逻辑
-    return get_company_profile_with_fallback(symbol)
+#     返回：
+#         包含以下字段的字典：
+#         -名称:公司名称
+#         -行业：公司所属行业
+#         -ipo时间:公司IPO日期
+#         -市值:市值(百万美元)
+#         -官网:公司官网
+#         -描述:公司的描述
+#     """
+#     # 注意，这里只是调用原函数，不需要重写逻辑
+#     return get_company_profile_with_fallback(symbol)
+
+# 最新创建Agent的方式
+# agent=create_agent(
+#     model=llm,
+#     tools=tools,
+#     system_prompt="你是投资助手"
+# )
+# 调用 -使用简单的字典格式
+# result=agent.invoke({
+#     "messages":[{"role":"user","content":"问题"}]
+# })
 
 """
 ┌─────────────────────────────────────────┐
-│ Agent 的工作流程:REAct=Reasoning+Acting+Observation             
+│ Agent 的工作流程:ReAct=Reasoning+Acting+Observation             
 ├─────────────────────────────────────────┤
 │                                         │
 │  用户问题: "NVDA 是否值得投资？"         │
@@ -115,43 +127,7 @@ def get_company_profile_with_fallback(symbol:str)->str:
 """
 
 
-# 下面这种使用AgentExecutor和create_tool_calling_agent已经被Langchain所抛弃。
-# def basic_agent_example():
-#     # Agent：搭载LLM作为大脑，能自主决策、调用Tool完成复杂任务。
-#     # 核心作用：替代人类手动判断需要调用什么函数、按什么顺序调用函数的过程
 
-#     # 1.定义工具列表：告诉Agent有哪些工具可用，Agent只能从这个列表中选择工具(不会调用列表外的tool)
-#     tools=[get_stock_price,get_pe_ratio,get_company_info]
-
-#     # 2.定义prompt：告诉Agent身份、工具用法、思考方式
-#     # {tools}自动渲染工具列表的描述，让Agent知道每个工具的用途
-#     # {input}用户的问题
-#     # {agent_scratchpad}核心占位符——存储Agent的思考过程和工具调用记录
-#     prompt=ChatPromptTemplate.from_messages([
-#         ("system", """你是投资助手。你有以下工具：{tools} 使用工具的格式：工具名称: 参数 当前对话历史：{chat_history}"""),
-#                 ("human", "{input}"),
-#         ("placeholder", "{agent_scratchpad}")  
-#         ])
-    
-#     # 3.创建agent
-#     # create_tool_calling_agent是Langchain专门用于 工具调用型Agent 的创建函数
-#     agent=create_tool_calling_agent(llm,tools,prompt)
-
-#     # 4.创建执行器AgentExecutor：接收用户输入，传给Agent→执行Agent的工具调用指令(调用tools的函数)
-#     # →把工具返回结果回传给Agent，让Agent判断是否需要继续调用工具
-#     agent_executor=AgentExecutor(
-#         agent=agent,
-#         tools=tools,
-#         verbose=True,#verbose=True，会在控制台打印Agent的完整思考过程，方便调试
-#     )
-
-    # # 测试
-    # result=agent_executor.invoke({# invoke方法的输入是字典
-    #     "input": "NVDA的价格是多少？如果EPS是3.5，PE比率是多少？",# input 用户的核心需求
-    #     "chat_history": []# 对话历史
-    # })
-    
-    # print("\n最终回答：", result["output"])
 
 
 """
@@ -198,43 +174,93 @@ A: "主要有三个：
 """
 
 # 接下来将之前的函数改造为Tool
-@tool("获取股票对应供公司信息,输入参数为股票代码(如'NVDA'/'AAPL'),返回格式为字典")
-def fetch_company_profile(symbol:str)->dict:
-    return get_company_profile_with_fallback(symbol)# 但是这里我有一个问题，因为我的get_company_profile_with_fallback(symbol)函数里面内置了try except块，
-# 我的问题是：如果获取失败了，返回的是print打印出来的字符串，但是这里要求返回的是dict字典，所以不行，应该把print都删除，直接except里面return字典？
-# A：with_fallback返回的是字典，只是有些中间过程的print语句
-# 返回的字典内容如下：
-#             '金融数据源来源':'Finnhub',
-#             '名称':profile.get('name'),
-#             '行业':profile.get('finnhubIndustry'),
-#             'ipo时间':profile.get('ipo'),
-#             '市值(百万美元)':profile.get('marketCapitalization'),
-#             '官网':profile.get('weburl'),
-#             '描述':profile.get('description'),
+# @tool("获取股票对应供公司信息,输入参数为股票代码(如'NVDA'/'AAPL'),返回格式为字典")
+# def fetch_company_profile(symbol:str)->dict:
+#     return get_company_profile_with_fallback(symbol)# 但是这里我有一个问题，因为我的get_company_profile_with_fallback(symbol)函数里面内置了try except块，
+# # 我的问题是：如果获取失败了，返回的是print打印出来的字符串，但是这里要求返回的是dict字典，所以不行，应该把print都删除，直接except里面return字典？
+# # 回答：with_fallback返回的是字典，只是有些中间过程的print语句
 
 
-@tool("获取股票数据,输入参数为股票代码(如'NVDA'/'AAPL'),返回格式为字典")
-def fetch_real_time_data(symbol:str)->dict:
+# 重写获取股票实时数据以及获取美国宏观经济数据的Tool
+@tool
+def fetch_stock_profile(symbol:str)->dict:
+    """
+    获取上市公司股票信息
+    参数：
+        symbol:上市公司的股票代码(如"NVDA"、"MU")
+    返回：
+        包含公司名称、行业、ipo时间、市值、官网等信息的字典
+    """
+    return get_company_profile_with_fallback(symbol)
+
+@tool
+def fetch_stock_price(symbol:str)->dict:
+    """
+    获取上市公司股票价格数据
+    参数：
+        symbol:上市公司的股票代码(如"NVDA"、"MU")
+    返回：
+        包含最新成交价、当日最高价、当日最低价、当日开盘价、前一个交易日的收盘价等信息的字典
+    """
     return get_real_time_data_with_fallback(symbol)
-# 返回的字典内容如下：
-            # 'source': 'Finnhub',
-            # "最新成交价": real_time_data.get('c'),
-            # "当日最高价": real_time_data.get('h'),
-            # "当日最低价": real_time_data.get('l'),
-            # "当日开盘价": real_time_data.get('o'),
-            # "前一个交易日的收盘价": real_time_data.get('pc'),
-            # "上述数据的更新时间": formatted_local_time
 
-@tool("获取美国宏观经济数据,输入参数为股票代码(如'NVDA'/'AAPL'),返回格式为字典")
-# def fetch_macro_economic_data(symbol:str)->dict:# 这里不需要输入参数
-def fetch_macro_economic_data()->dict:
+@tool
+def fetch_macro_economy()->dict:
+    """
+    获取美国宏观经济数据
+    参数：
+        注意：此函数不需要任何参数，返回最新的宏观经济指标
+        
+    返回：
+        包含汇率、利率、就业、通胀、GDP等数据的字典
+    """
     return get_macro_economic_data()
 
-# 将之前的函数改造为tool之后，尝试做一个投资分析Agent
+def create_invest_agent():
+    # 根据上面我们写好docstring的Tool来创建Agent
+    tools=[fetch_stock_profile,fetch_stock_price,fetch_macro_economy]
+    system_prompt="""
+ 你是一名顶级对冲基金经理。
+ 分析步骤：
+ 1.先调用fetch_macro_economy了解宏观环境
+ 2.再调用fetch_stock_profile(symbol)和fetch_stock_price(symbol)获取个股信息。
+ 3.综合宏观和微观数据，给出投资建议
+
+ 你有以下工具：
+ - fetch_stock_profile(symbol):获取公司信息
+ - fetch_stock_price(symbol):获取股票价格
+ - fetch_macro_economy():获取宏观经济数据(无需参数)
+  """
+    return create_agent(
+        model=llm,
+        tools=tools,
+        system_prompt=system_prompt
+    )
+
+def main():# 主函数
+    agent=create_invest_agent()
+    # 测试问题
+    question="英伟达('NVDA')是否值得投资?请结合美国宏观经济形势与英伟达('NVDA')个股情况来进行投资判断，并告诉我明确结论"
+    # 流式输出调用Agent
+    for x in agent.stream(
+        {"messages":[{"role":"user","content":question}]},
+        stream_mode="values"
+    ):
+        if "messages" in x:
+            last_msg=x["messages"][-1]
+            if isinstance(last_msg,dict):
+                print(last_msg.get("content",""))
+            else:
+                print(last_msg.content)
+if __name__=="__main__":
+    main()
+
+
+# 将之前的函数改造为tool之后，尝试做一个投资分析Agent(失败版)
 def invest_analyze_agent():
 
     # 定义工具列表
-    tools=[fetch_company_profile,fetch_real_time_data,fetch_macro_economic_data]
+    # tools=[fetch_company_profile,fetch_real_time_data,fetch_macro_economic_data]
     # 定义prompt
     prompt=ChatPromptTemplate.from_messages([
         ("system","""
