@@ -205,3 +205,51 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# ==============================================
+# AI_Invest_Assistant 项目特定配置(注：以下为开发者的个人配置，请根据需要修改)
+# ==============================================
+
+# 不上传到GitHub (个人学习资料)
+Learning_Path/
+
+# 不上传到GitHub 
+Solutions/
+
+# 不上传到GitHub (个人练习代码)
+Exercises/
+
+# 数据库文件
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# 日志文件
+logs/
+*.log
+
+# 临时文件
+temp/
+tmp/
+
+# API密钥配置
+.env
+.env.*
+!.env.example
+
+# 个人笔记
+notes/
+learning_journal.md
+PROGRESS_TRACKER.md
+每日学习流程指南.md
+LEARNING_SYSTEM_SUMMARY.md
+START_HERE.md
+
+
+# VS Code 工作区配置
+.vscode/settings.json
+
+# 系统文件
+.DS_Store
+Thumbs.db

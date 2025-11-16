@@ -2,7 +2,7 @@
 AI investment assistant based on large language models
 ============================================================================
 郑重声明如下内容，请严格遵守以下内容：
-本项目集成了 Finnhub、Alpha Vantage、Twelve Data和EODHD等第三方数据 API。
+本项目集成了Finnhub、Alpha Vantage、Twelve Data和EODHD等第三方数据API。
 
 这些服务的免费套餐通常仅限于“个人”和“非商业”用途。
 
@@ -12,7 +12,13 @@ AI investment assistant based on large language models
 
 本项目（及作者）对用户因滥用 API 密钥而导致的任何后果（如账户被封）概不负责。
 ============================================================================
+
+### v 2.5版本
+#### 受到NOFX项目的启发，后续将接入券商的API进行实盘，先创建一个.env.example文件。
+
 ### v2.4版本
+#### 理解LangGraph和Agent——LangGraph_Tutorial.py
+从LangGraph_Tutorial.py开始正式学习LangGraph,LangGraph有3个新的概念：包括State、Node和Edge，一句话总结State、Node和Edge就像是小时候玩的丢手绢游戏，State就像是小朋友手里的手绢，每个小朋友都可以往上写东西，Node是个执行函数，实际实行“丢手绢”这个动作，Edge则是规定小朋友们丢手绢的方向。这里定义节点函数需要额外加上(state:InvestmentState)，你需要获取某一个特定的State，定义完Node之后，构建一个workflow=StateGraph(InvestmentState)，然后是使用add_node往里面添加节点，add_edge方式确认流程(这里必须是START,END结尾)，接着编译并执行app=workflow.compile()。条件分支类似，不过需要注意的是需要额外多定义一个判断节点函数，然后在Edge中使用.add_conditional_edges函数添加条件节点。后续将继续补充循环节点、多Agent对话等内容。
 
 
 ### v2.3版本
