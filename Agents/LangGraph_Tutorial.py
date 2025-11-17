@@ -20,6 +20,7 @@ from langgraph.prebuilt import ToolNode
 # ToolNode是专门用于执行工具调用的节点
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
+from langchain.agents import create_agent
 import os
 from dotenv import load_dotenv
 import operator
@@ -284,3 +285,302 @@ def conditional_workflow():
 if __name__=="__main__":
     conditional_workflow()
 
+
+# 尝试加入记忆与循环
+"""Agent可以多次调用工具直到完成任务"""
+def loop_with_memory():
+    #循环与Memory-Agent自动决定调用次数
+    class AgentState(TypedDict):
+        messages:Annotated[list,add_messages]# 使用add_messages
+        iteration:int
+    
+    @tool
+    def search_data(query:str)->str:
+        """搜索财务数据"""
+        return f"找到关于{query}的数据:PE=52,EPS=$3.5"
+    
+    @tool
+    def calculate(expression:str)->str:
+        """计算数值"""
+        return "182"
+    
+    tools=[search_data,calculate]
+    tool_node=ToolNode(tools)
+
+    # Agent节点：决定下一步行动
+    def agent_node(state:AgentState):
+        messages=state["messages"]
+        iteration=state.get("iteration",0)
+        print(f"迭代{iteration+1} Agent思考中")
+        response=llm.bind_tools(tools).invoke(messages)
+
+        return{
+            "messages":[response],
+            "iteration":iteration+1
+        }
+    
+    # 决策：继续还是结束
+    def should_continue(state:AgentState)->Literal["tools","end"]:
+        last_messages=state["messages"][-1]
+
+        # 如果LLM返回了工具调用，继续
+        if hasattr(last_messages,"tool_calls") and last_messages.tool_calls:
+            print("→需要调用工具，继续循环")
+            return tools
+        # 否则结束
+        print("→任务完成，循环结束")
+        return "end"
+
+    # 构建图
+    workflow=StateGraph(AgentState)
+    workflow.add_node("agent",agent_node)
+    workflow.add_node("tools",tool_node)
+    workflow.add_conditional_edges(
+        "agent",
+        should_continue,{
+            "tools":"tools",
+            "end":END
+        }
+    )
+    workflow.add_edge("tools","agent") #工具执行后回到Agent
+
+    app=workflow.compile()
+
+    # 测试
+    question="NVDA的PE是多少？如果EPS是3，合理价格应该是多少？"
+    result=app.invoke({
+        "messages":[HumanMessage(content=question)],
+        "iteration":0
+    })
+
+    for i,msg in enumerate(result["messages"]):
+        if isinstance(msg,HumanMessage):
+            print(f"\n👤 用户: {msg.content}")
+        elif isinstance(msg, AIMessage):
+            if msg.content:
+                print(f"\n🤖 AI: {msg.content}")  
+
+
+# 多agent对话
+def multi_agent_supervisor():
+    """
+    多Agent对话 - Supervisor监督者模式
+
+    架构：
+    ┌─────────────────────────────────────────┐
+    │         用户输入问题                    │
+    └─────────────┬───────────────────────────┘
+                  │
+                  ▼
+    ┌─────────────────────────────────────────┐
+    │      Supervisor（监督者Agent）          │
+    │  决定：该问题应该由哪个专家来回答？      │
+    └─────────┬───────────────────────────────┘
+              │
+      ┌───────┴───────┐
+      ▼               ▼
+    ┌─────────┐   ┌─────────┐   ┌─────────┐
+    │宏观分析 │   │公司分析 │   │估值分析 │
+    │  专家   │   │  专家   │   │  专家   │
+    └────┬────┘   └────┬────┘   └────┬────┘
+         │             │             │
+         └─────────────┴─────────────┘
+                       │
+                       ▼
+               返回给Supervisor
+                       │
+                       ▼
+                   输出结果
+
+    这是2025年最推荐的多Agent架构！
+    """
+
+    print("="*50)
+    print("示例5：多Agent对话 - Supervisor监督者模式")
+    print("="*50)
+
+    # 定义状态
+    class SupervisorState(TypedDict):
+        messages: Annotated[list, add_messages]
+        next_agent: str  # 下一个要调用的agent
+
+    # 创建三个专家Agent
+
+    # 1. 宏观经济分析专家
+    @tool
+    def get_macro_data() -> dict:
+        """获取宏观经济数据"""
+        return {
+            "fed_rate": "4.0%-4.25%",
+            "cpi": 3.01,
+            "unemployment": 4.0
+        }
+
+    macro_agent = create_agent(
+        model=llm,
+        tools=[get_macro_data],
+        system_prompt="""你是宏观经济分析专家。
+        专门分析美国的利率、通胀、就业等宏观经济指标。
+        当被问到宏观经济问题时，使用get_macro_data工具获取数据并分析。
+        回答要简洁专业，50字以内。"""
+    )
+
+    # 2. 公司基本面分析专家
+    @tool
+    def get_company_info(symbol: str) -> dict:
+        """获取公司基本信息"""
+        return {
+            "name": "NVIDIA",
+            "industry": "Semiconductors",
+            "market_cap": "4.5T"
+        }
+
+    company_agent = create_agent(
+        model=llm,
+        tools=[get_company_info],
+        system_prompt="""你是公司基本面分析专家。
+        专门分析公司的行业地位、业务模式、竞争优势等。
+        当被问到公司情况时，使用get_company_info工具获取数据并分析。
+        回答要简洁专业，50字以内。"""
+    )
+
+    # 3. 估值分析专家
+    @tool
+    def get_valuation(symbol: str) -> dict:
+        """获取估值数据"""
+        return {
+            "pe": 52.0,
+            "price": 186.5,
+            "target_price": 220.0
+        }
+
+    valuation_agent = create_agent(
+        model=llm,
+        tools=[get_valuation],
+        system_prompt="""你是估值分析专家。
+        专门分析股票的PE、PB等估值指标，判断高估还是低估。
+        当被问到估值问题时，使用get_valuation工具获取数据并分析。
+        回答要简洁专业，50字以内。"""
+    )
+
+    # Supervisor节点：决定调用哪个专家
+    def supervisor_node(state: SupervisorState):
+        messages = state["messages"]
+
+        # 使用LLM决定路由
+        supervisor_prompt = """你是投资分析团队的Supervisor（监督者）。
+
+你手下有三位专家：
+1. macro_expert - 宏观经济分析专家（分析利率、通胀、就业等）
+2. company_expert - 公司基本面分析专家（分析公司业务、行业地位等）
+3. valuation_expert - 估值分析专家（分析PE、价格、是否高估等）
+
+根据用户的问题，决定应该把问题转给哪位专家。
+
+规则：
+- 如果问宏观经济、美联储、通胀 → 选择 macro_expert
+- 如果问公司业务、行业、竞争力 → 选择 company_expert
+- 如果问估值、价格、PE、是否值得买 → 选择 valuation_expert
+- 如果需要综合分析，先选择最相关的一个
+
+只回复专家名称，不要其他内容。从以下选项中选一个：
+macro_expert, company_expert, valuation_expert, FINISH
+"""
+
+        response = llm.invoke([
+            SystemMessage(content=supervisor_prompt),
+            *messages
+        ])
+
+        next_agent = response.content.strip()
+        print(f"\n🎯 Supervisor决策：将问题转给 {next_agent}")
+
+        return {"next_agent": next_agent}
+
+    # 各专家节点
+    def macro_expert_node(state: SupervisorState):
+        print("  → 宏观经济专家工作中...")
+        result = macro_agent.invoke(state)
+        return {"messages": result["messages"]}
+
+    def company_expert_node(state: SupervisorState):
+        print("  → 公司分析专家工作中...")
+        result = company_agent.invoke(state)
+        return {"messages": result["messages"]}
+
+    def valuation_expert_node(state: SupervisorState):
+        print("  → 估值分析专家工作中...")
+        result = valuation_agent.invoke(state)
+        return {"messages": result["messages"]}
+
+    # 决策函数：根据supervisor的决定路由
+    def route_to_expert(state: SupervisorState) -> Literal["macro", "company", "valuation", "end"]:
+        next_agent = state["next_agent"]
+
+        if "macro" in next_agent.lower():
+            return "macro"
+        elif "company" in next_agent.lower():
+            return "company"
+        elif "valuation" in next_agent.lower():
+            return "valuation"
+        else:
+            return "end"
+
+    # 构建图
+    workflow = StateGraph(SupervisorState)
+
+    # 添加节点
+    workflow.add_node("supervisor", supervisor_node)
+    workflow.add_node("macro", macro_expert_node)
+    workflow.add_node("company", company_expert_node)
+    workflow.add_node("valuation", valuation_expert_node)
+
+    # 定义流程
+    workflow.add_edge(START, "supervisor")
+
+    # Supervisor根据决策路由到不同专家
+    workflow.add_conditional_edges(
+        "supervisor",
+        route_to_expert,
+        {
+            "macro": "macro",
+            "company": "company",
+            "valuation": "valuation",
+            "end": END
+        }
+    )
+
+    # 专家回答后回到supervisor（可以继续问下一个专家）
+    workflow.add_edge("macro", END)
+    workflow.add_edge("company", END)
+    workflow.add_edge("valuation", END)
+
+    app = workflow.compile()
+
+    # 测试不同类型的问题
+    test_questions = [
+        "现在美国的经济形势如何？",
+        "NVDA是一家什么样的公司？",
+        "NVDA现在的估值贵不贵？"
+    ]
+
+    for i, question in enumerate(test_questions, 1):
+        print(f"\n{'='*50}")
+        print(f"[问题 {i}] {question}")
+        print('='*50)
+
+        result = app.invoke({
+            "messages": [HumanMessage(content=question)]
+        })
+
+        # 提取最后的AI回答
+        last_ai_message = None
+        for msg in reversed(result["messages"]):
+            if isinstance(msg, AIMessage) and msg.content:
+                last_ai_message = msg
+                break
+
+        if last_ai_message:
+            print(f"\n💬 回答：{last_ai_message.content}")
+        print()
+  
