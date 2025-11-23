@@ -626,7 +626,7 @@ def get_real_time_data_with_fallback(symbol: str) -> dict:
             return {'error': f'Both APIs failed: {e}, {e2}'}
     
 
-def get_financials_with_fallback(symbol:str) -> str:
+def get_financials_with_fallback(symbol:str) -> dict:
     try:
         financials=finnhub_client.company_basic_financials(symbol,'all')
         metric=financials.get('metric',{})

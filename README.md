@@ -18,7 +18,8 @@ AI investment assistant based on large language models
 
 ### v2.4版本
 #### 理解LangGraph和Agent——LangGraph_Tutorial.py
-从LangGraph_Tutorial.py开始正式学习LangGraph,LangGraph有3个新的概念：包括State、Node和Edge，一句话总结State、Node和Edge就像是小时候玩的丢手绢游戏，State就像是小朋友手里的手绢，每个小朋友都可以往上写东西，Node是个执行函数，实际实行“丢手绢”这个动作，Edge则是规定小朋友们丢手绢的方向。这里定义节点函数需要额外加上(state:InvestmentState)，你需要获取某一个特定的State，定义完Node之后，构建一个workflow=StateGraph(InvestmentState)，然后是使用add_node往里面添加节点，add_edge方式确认流程(这里必须是START,END结尾)，接着编译并执行app=workflow.compile()。条件分支类似，不过需要注意的是需要额外多定义一个判断节点函数，然后在Edge中使用.add_conditional_edges函数添加条件节点。后续将继续补充循环节点、多Agent对话等内容。
+从LangGraph_Tutorial.py开始正式学习LangGraph,LangGraph有3个新的概念：包括State、Node和Edge，一句话总结State、Node和Edge就像是小时候玩的丢手绢游戏，State就像是小朋友手里的手绢，每个小朋友都可以往上写东西，Node是个执行函数，实际实行“丢手绢”这个动作，Edge则是规定小朋友们丢手绢的方向。首先需要class XxxState(TypeDict):用@tool定义工具函数，工具函数需要的是(symbol:xxx),工具函数中需要包含工具的简洁、参数说明、返回说明，并且一般return都是函数。定义节点函数时需要(state:XxxState)，因为节点需要完整获取state，并且return更新全部/部分state。在node函数中，使用工具函数名.invoke(state["symbol"])来调用工具函数是一种常见方式，如果是需要用到大模型的情况，也是在node节点函数中prompt=f-string，然后llm.invoke(prompt).content获取大模型的回答，当然还是要以state(字典的方式返回)。然后是使用add_node往里面添加节点(“自命名的名称”,节点函数)，add_edge方式确认流程(这里必须是START,END结尾)，注意，决策函数不需要额外add_node添加。如果是add_conditional_edges("前一个节点名称",决策函数，{"决策函数Literal返回的选项1":之前add_node定义时的节点名称1},{"决策函数Literal2返回的选项2":之前add_node定义时的节点名称2}),然后是add_edge(选项1,END),add_edge(选项2,END),然后workflow=StateGraph(XxxState)接着编译并执行app=workflow.compile()，然后app.invoke({"symbol":"股票代码"})。
+   学习完分支后，继续学习循环与记忆相关，想要使用循环或者记忆，一开始的时候就需要class XxxState(TypeDict):中"messages":Annotated[list,add_messages] iteration:int。其中add_messages可以继续将内容继续添加到列表里面而不是覆盖，iteration记录迭代或者说循环次数。一开始还是@tool定义工具函数，但是与conditional_workflow_with_agent()不同之处在于，这个例子里将工具函数存放在tools列表中，然后用ToolNode(tools)作为工具节点，在agent节点函数中，直接llm.bind_tools(tools).invoke()让大模型自主决定使用调用哪些tool，而不是像上一个例子中直接工具函数名.invoke(state["symbol"])方式来直接调用tool工具函数。
 
 
 ### v2.3版本

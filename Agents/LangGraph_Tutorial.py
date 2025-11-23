@@ -55,532 +55,509 @@ class InvestmentState(TypedDict):# InvestmentState继承自TypeDict
     macro_data:dict #宏观经济数据
     company_data:dict #公司数据
     company_price:dict #公司价格数据
-    analysis:str #分析结果
     recommendation:str #投资建议
     messages:Annotated[list,add_messages]
     # Annotated指定类型为list，add_messages会自动将新消息列表追加到列表，而不是覆盖，预留用于人机交互
 
-# 创建第一个Graph
-def simple_graph_example():
-    # 最简单的LangGraph示例，理解Node和Edge
-
-    # 1.定义简单State，只有input、output；两个字段
-    class SimpleState(TypedDict):
-        input: str
-        output: str
-
-    # 2.定义节点Node(节点函数)：每个节点负责一件事情，输入是State，输出是要更新的字段
-    def step1(state:SimpleState):
-        """节点1：处理输入 """
-        print(f"步骤1:收到输入'{state['input']}'")
-        return {"output":"处理中..."}
-    
-    def step2(state:SimpleState):
-        """节点2：生成输出 """
-        print(f"步骤2：基于'{state['input']}'生成结果")
-        return {"output":f"已完成对{state['input']}的分析"}
-    
-    # 3.创建StateGraph实例，绑定SimpleState
-    workflow = StateGraph(SimpleState)
-
-    # 4.添加节点到图中，参数是“节点名称”和“节点函数”
-    workflow.add_node("处理",step1)# 节点名“处理”，对应函数step1
-    workflow.add_node("生成",step2)# 节点名“生成”，对应函数step2
-
-    # 5.定义Edge(执行顺序)：START→处理→生成→END
-    workflow.add_edge(START,"处理")
-    workflow.add_edge("处理","生成")
-    workflow.add_edge("生成",END)
-
-    # 6.编译工作流，把定义的State、Node、Edge变成可执行的程序
-    app=workflow.compile()
-
-    # 7.执行工作流，传入初始state(只有input字段)，返回最终state
-    result=app.invoke({"input":"NVDA"})
-    print("最终结果是:",result)
-
-# 实战 投资分析工作流(基础版)
-def investment_workflow_basic():
-    """完整的投资分析LangGraph,使用真实的金融数据工具 """
-    
+# 简单尝试
+def basic_investment_workflow():
     @tool
     def fetch_macro_data()->dict:
         """
         获取美国宏观经济数据
-        参数:
-            因为获取的是美国宏观经济数据，无需传入参数
+        参数：
+            无需参数，因为获取的是美国宏观经济数据
         返回：
-            返回包括汇率、联邦基金目标利率、通胀数据和GDP数据的字典
+             返回一个包含汇率、利率、就业、通胀、GDP等数据的字典
         """
         return get_macro_economic_data()
-    
     @tool
     def fetch_stock_profile(symbol:str)->dict:
         """
-        获取股票代码对应上市公司的信息
+        获取股票对应上市公司的公司资料
         参数：
-            symbol为上市公司的股票代码(比如"NVDA"、"AAPL")
+            symbol:上市公司的股票代码(比如“NVDA”/"BMNR")
         返回:
-            返回包括名称、行业、ipo时间、市值(百万美元)、官网、描述等数据的字典
+            返回一个包含公司名称、行业、ipo时间、市值、官网等信息的字典
         """
-        return get_company_profile(symbol)
-    
+        return get_company_profile_with_fallback(symbol)
     @tool
     def fetch_stock_price(symbol:str)->dict:
         """
-        获取股票代码对应上市公司的价格
+        获取股票最新的一些价格数据
         参数：
-            symbol为上市公司的股票代码(比如"NVDA"、"AAPL")
+            symbol:上市公司的股票代码(比如“NVDA”/"BMNR")
         返回：
-            返回包括最新成交价、当日最高价、当日最低价、当日开盘价、前一个交易日的收盘价等数据的字典
+            返回一个包含最新成交价、当日最高价、当日最低价、当日开盘价、前一个交易日的收盘价等信息的字典
         """
         return get_real_time_data_with_fallback(symbol)
     
-    # 节点1：获取宏观数据
+    # 节点1：获取美国宏观经济数据
     def get_macro_data_node(state:InvestmentState):
-        print("正在获取宏观数据...")
-        macro=fetch_macro_data.invoke({})# 该工具无参数，传入空字典
-        return {"macro_data":macro}# 数据节点的返回必须使用字典的键值对
+        macro=fetch_macro_data.invoke({})# 这里没有参数，传入空字典
+        return{"macro_data":macro}
     
-    # 节点2：获取公司数据
-    def get_company_profile_node(state:InvestmentState):
-        print("正在获取供公司信息")
-        company_profile=fetch_stock_profile.invoke(state["symbol"])
-        return {"company_data":company_profile}
+
+    #节点2：获取上市公司的公司介绍
+    def get_stock_profile_node(state:InvestmentState):
+        stock_profile=fetch_stock_profile.invoke(state["symbol"])
+        return{"company_data":stock_profile}
     
-    # 节点3：获取公司价格
-    def get_company_price_node(state:InvestmentState):
-        print("正在获取公司股票价格")
-        company_price=fetch_stock_price.invoke(state["symbol"])
-        return {"company_price":company_price}
+
+    # 节点3：获取上市公司的价格数据
+    def get_stock_price_node(state:InvestmentState):
+        stock_price=fetch_stock_price.invoke(state["symbol"])
+        return {"company_price":stock_price}
     
-    # 节点4：分析估值
-    def analyze_node(state:InvestmentState):
-        prompt = f"""
- 基于以下数据分析{state['symbol']}:
 
- 宏观环境：
- - 联邦利率：{state['macro_data']['联邦基金目标利率']}
- - CPI:{state['macro_data']['通胀数据']}
- - GDP数据:{state['macro_data']['GDP数据']}
-
- 公司数据：
- - 公司介绍：{state['company_data']}
- - 公司股票价格:{state['company_price']}
-
- 请判断估值水平（高估/合理/低估）,限200字内
- """
-        analysis=llm.invoke(prompt).content
-        return{"analysis":analysis}
-     
-    # 节点5：生成建议
-    def recommend_node(state:InvestmentState):
-        print("正在生成建议")
+    # 节点4:根据提供的宏观美国经济数据和微观个股数据，给出投资建议
+    def investment_analyis_node(state:InvestmentState):
         prompt=f"""
-     基于分析：{state['analysis']}
-     给出明确的投资建议(买入/持有/卖出/)
+     现在你的身份是一名顶级对冲基金的基金经理，非常擅长根据宏观经济情况结合微观个股走势来做出投资判断，
+     先给你提供如下数据，请基于以下数据对{state["symbol"]}进行分析
+     宏观经济方面：
+     外汇利率方面：美元兑人民币：{state['macro_data']["美元兑人民币"]}、
+     美元兑日元：{state['macro_data']["美元兑日元"]}、美元兑欧元：{state['macro_data']["美元兑欧元"]}。
+     联邦基金目标利率：{state['macro_data']["联邦基金目标利率"]}。
+     非农就业人数：{state['macro_data']["非农就业人数"]}。
+     失业率：{state['macro_data']["失业率"]}。
+     通胀数据：{state['macro_data']["通胀数据"]}。
+     GDP数据:{state['macro_data']["GDP数据"]}。
+
+     微观个股方面：
+     公司名称：{state['company_data']['名称']},
+     公司所属行业：{state['company_data']['行业']},
+     IPO时间:{state['company_data']['ipo时间']},
+     市值(百万美元):{state['company_data']['市值(百万美元)']},
+     官网:{state['company_data']['官网']},
+     描述:{state['company_data']['描述']},
+     最新成交价：{state['company_price']["最新成交价"]},
+     当日最高价：{state['company_price']["当日最高价"]},
+     当日最低价：{state['company_price']["当日最低价"]},
+     当日开盘价：{state['company_price']["当日开盘价"]},
+     前一个交易日的收盘价：{state['company_price']["前一个交易日的收盘价"]},
+     上述数据的更新时间：{state['company_price']["上述数据的更新时间"]}。
+     
+     一些要求：
+      1. 根据收到的宏观经济数据，判断当下所处的宏观经济环境是偏向宽松或是偏向紧缩，并根据通胀数据与就业数据，
+      判断接下来美联储是会缩表或是扩表，即采取宽松的货币政策或是紧缩的货币政策，未来是否为继续降息放水。
+      2.判断当下要分析的公司目前的股价是被高估或是低估，是否应当买入，为什么？按照目前的宏观情况与微观情况，什么样的价格买入比较合适？
+      3.逻辑清晰，表达有条理，从宏观经济到微观个股进行自上而下的梳理。
      """
         recommendation=llm.invoke(prompt).content
         return{"recommendation":recommendation}
     
-    # 构建图
+    # 开始构建图
     workflow=StateGraph(InvestmentState)
 
     # 添加所有节点
-    workflow.add_node("获取宏观数据",get_macro_data_node)
-    workflow.add_node("获取公司信息",get_company_profile_node)
-    workflow.add_node("获取公司价格",get_company_price_node)
-    workflow.add_node("分析公司估值",analyze_node)
-    workflow.add_node("投资建议",recommend_node)
+    workflow.add_node("宏观数据",get_macro_data_node)
+    workflow.add_node("获取公司资料",get_stock_profile_node)
+    workflow.add_node("获取公司股票价格信息",get_stock_price_node)
+    workflow.add_node("对目标公司给出投资建议",investment_analyis_node)
 
-    # 定义流程
-    workflow.add_edge(START,"获取宏观数据")
-    workflow.add_edge("获取宏观数据","获取公司信息")
-    workflow.add_edge("获取公司信息","获取公司价格")
-    workflow.add_edge("获取公司价格","分析公司估值")
-    workflow.add_edge("分析公司估值","投资建议")
-    workflow.add_edge("投资建议",END)
+    # 添加完节点后，指定边顺序
+    workflow.add_edge(START,"宏观数据")
+    workflow.add_edge("宏观数据","获取公司资料")
+    workflow.add_edge("获取公司资料","获取公司股票价格信息")
+    workflow.add_edge("获取公司股票价格信息","对目标公司给出投资建议")
+    workflow.add_edge("对目标公司给出投资建议",END)
 
     # 编译并执行
     app=workflow.compile()
-
     result=app.invoke({"symbol":"NVDA"})
 
-    print(f"股票：{result['symbol']}")
-    print(f"\n分析：\n{result['analysis']}")
-    print(f"\n建议：\n{result['recommendation']}")
+    # print(result) 这里返回的result是完整的state快照，之前定义的InvestmentState里有好几个字段，打印result本质是打印
+    # “完整的字典对象”，会把所有字段都全部输出。而python字典打印是“紧凑无格式输出”，所以打印出来会显得非常挤。
+
+    print("="*60)
+    print(f"📊 {result['symbol']} 投资分析报告")
+    print("="*60)
+
+ # 1. 宏观经济（只展示核心指标，不冗余）
+    print("\n🌍 核心宏观数据：")
+    macro = result["macro_data"]
+    print(f"  - 联邦基金利率：{macro['联邦基金目标利率']['利率区间']}")
+    print(f"  - CPI同比：{macro['通胀数据']['CPI同比(%)']}%")
+    print(f"  - 失业率：{macro['失业率']['最新值(%)']}%")
+    print(f"  - 美元兑人民币：{macro['美元兑人民币']['最新值']}")
+
+ # 2. 公司&股价（合并展示，提取关键信息）
+    print("\n🏢 公司&股价核心信息：")
+    company = result["company_data"]
+    price = result["company_price"]
+    print(f"  - 公司名称：{company['名称']} | 行业：{company['行业']} | 市值：{company['市值(百万美元)']/1000:.1f}十亿美元")
+    print(f"  - 最新股价：${price['最新成交价']} | 当日波动：${price['当日最低价']:.2f}-${price['当日最高价']:.2f}")
+    print(f"  - 数据更新时间：{price['上述数据的更新时间']}")
+
+ # 3. 投资建议（直接展示，保留LLM原始格式）
+    print("\n💡 投资分析与建议：")
+    print("-"*40)
+    print(result["recommendation"].strip())  # 去掉首尾空行，保持原有换行
+    print("\n" + "="*60)
 
 # if __name__=="__main__":
-#     investment_workflow_basic()
+#     basic_investment_workflow()
 
-
-# 接下来：条件分支——根据不同情况走不同路径
+# 尝试加入条件分支
 def conditional_workflow():
-    """学习条件路由 高PE和低PE走不同分析路径 """
-    print("高PE深度分析 vs 低PE快速评估")
-    
     class AnalysisState(TypedDict):
         symbol:str
-        price:float
-        pe_ratio:float
+        peers:list
         output:str
 
-    # Node：获取数据
-    def fetch_data(state:AnalysisState):
-        # 模拟获取数据
-        print(f"获取{state['symbol']}数据")
-        return{
-            "price":state.get("price",186.5),
-            "pe_ratio":state.get("pe_ratio",52.0)
-        }
+    #     symbol:str
+    #     price:float
+    #     pe_ratio:float
+    #     peer_pes:list[dict]
+    #     out_put:str
+
+ 
+    # 我们在写程序的时候需要牢记，如果需要agent灵活调用的时候，才需要使用节点tool。且使用了tool，就需要用到ToolNode
+    # 如果只是固定使用，普通函数也可以
+    @tool
+    def fetch_company_peers(symbol:str)->dict:
+        """
+        获取上市公司同行业竞争对手
+        参数：
+           symbol:上市公司的股票代码(比如"NVDA"/"BMNR")
+        返回：
+            包含同行业其他上市公司股票代码的列表
+        """
+        return get_company_peers(symbol)
     
-    # 决策函数：根据PE比率决定路线
-    def should_deep_dive(state:AnalysisState)->Literal["深度分析","快速评估"]:
-        """高PE需要深度分析，低PE快速评估"""
-        if state["pe_ratio"]>50:
-            print(f"PE={state['pe_ratio']}>50,进入深度分析路径")
+    @tool
+    def fetch_company_financials(symbol:str)->dict:
+        """
+        获取上市公司财务数据情况
+        参数：
+            symbol:上市公司的股票代码(比如"NVDA"/"BMNR")
+        返回：
+            包括52周最高、52周最低、Beta系数、PE比率、毛利率等数据的字典
+        """
+        return get_financials_with_fallback(symbol)
+    
+    # 我们这里搞一个普通函数来获取各个竞争公司对手的市盈率情况
+    def get_peer_company_ratio(symbol:str)->list[dict]:
+        peers=get_company_peers(symbol)# 首先获取竞争对手list，然后使用for循环获取每一个竞争对手的pe_ratio，
+        # 下面是之前我的写法
+        # # 搞一个空字典，然后添加进去
+        # empty_dict=[]
+        # for i in len(range(peers)):
+        #     peer_dict=get_financials_with_fallback(peers[i])
+        #     empty_dict+={peers[i]:peer_dict["PE比率"]}
+        #     return empty_dict
+        # 现在我们已经使用一个普通函数通过列表的方式获取了每一个竞争对手的市盈率情况，但是市盈率及对应symbol目前是列表里面的字典
+        # 我们应该怎么把这个列表里面的字典取出来并作为state的一部分呢？
+        # 接下来是Codex为我修改的部分
+        peer_ratios=[]
+        for x in peers:
+            financials=get_financials_with_fallback(x)# 我之前是使用i从0开始，然后使用列表[数字]方式获取，
+            # 这样的缺点是我自己也没办法很好了解细化到每一个的输出情况
+            peer_ratios.append({"symbol":x,"pe_ratio":financials.get("PE比率")})
+        return peer_ratios
+    
+    # Node：获取同行市盈率列表
+    def fetch_peer_data(state:AnalysisState)->dict:
+        peer_ratios=get_peer_company_ratio(state["symbol"])
+        return {"peers":peer_ratios}# 这里直接把整个同行业竞争对手以及其对应的市盈率送进去了
+    
+    # 决策函数：根据同行市盈率列表来决定走哪条路径
+    def choose_peer_path(state:AnalysisState)->Literal["深度分析","快速评估"]:# Literal是python的类型提示(type hint)，表示函数只能返回这两个字符串之一
+        high_peers=[p for p in state["peers"] if p.get("pe_ratio",0) and p["pe_ratio"]>50]# 这一行的意思是使用推导式遍历列表里面的字典元素，
+        # 然后对列表使用.get(,0)方法判是否存在，不存在返回0，这是一种安全写法，然后用字典名[键]获取对应的value
+        # 最后返回的是列表，这个列表里元素是字典，且字典里第二个key“pe_ratio”大于50。
+        if high_peers:
+            print(f"发现{len(high_peers)}家公司PE>50,进入深度分析路径")
             return "深度分析"
         else:
-            print(f"PE={state['pe_ratio']}≤50,进入快速分析路径")
+            print("同行公司PE普通较低,进入快速评估")
             return "快速评估"
-    # 两条不同的分析路径
-    def deep_analysis(state:AnalysisState):
-        return{"output":f"{state['symbol']}PE已经高达{state['symbol']},需要警惕泡沫风险"}
-    
-    def quick_analysis(state:AnalysisState):
-        return{"output":f"{state['symbol']}PE目前为{state['pe_ratio']},估值较为合理"}
-    
-    # 构建图
+        
+    def deep_analysis(state: AnalysisState):
+        high_peers = [f"{p['symbol']}(市盈率为:{p['pe_ratio']}倍)" for p in state["peers"] if p.get("pe_ratio")]
+        return {
+            "out_put": f"{state['symbol']}所属行业内出现高PE公司:{', '.join(high_peers)}，需要警惕估值泡沫"
+        }
+
+    def quick_analysis(state: AnalysisState):
+        peers_desc = [f"{p['symbol']}(市盈率为:{p['pe_ratio']}倍)" for p in state["peers"] if p.get("pe_ratio")]
+        return {
+            "out_put": f"{state['symbol']} 所属行业同行PE水平正常:{', '.join(peers_desc)}，估值较为健康"
+        }
+
     workflow=StateGraph(AnalysisState)
-
-    workflow.add_node("获取数据",fetch_data)
-    workflow.add_node("深度分析",deep_analysis)
-    workflow.add_node("快速评估",quick_analysis)
-
-    workflow.add_edge(START,"获取数据")
-    # 关键：条件分支
-    workflow.add_conditional_edges(
-        "获取数据",
-        should_deep_dive,#决策函数
+    workflow.add_node("获取同行PE",fetch_peer_data)
+    workflow.add_node("深分",deep_analysis)
+    workflow.add_node("快分",quick_analysis)
+    workflow.add_edge(START,"获取同行PE")
+    workflow.add_conditional_edges(# conditional edges条件路由
+        "获取同行PE",#这里再写一遍是因为上面的.add_edge(START,"获取同行PE")
+        choose_peer_path,#作为决策函数根据state的内容进行判断
         {
-            "深度分析":"深度分析",
-            "快速分析":"快速评估"
+        "深度分析": "深分",# 这里左边的“深度分析”是choose_peer_path函数的返回值，右边的“深度分析”是add_node时定义的节点名称。
+        "快速评估": "快分",
+        },
+        workflow.add_edge("深分",END),
+        workflow.add_edge("快分",END)
+    )
+    app=workflow.compile()# 将你定义的节点和边编译成可执行的图结构，并返回一个可调用.invoke()的应用实例
+    result=app.invoke({"symbol":"NVDA"})# 其实整个conditional_flow()函数都没用到大语言模型，是因为没用到大语言模型，所以没有用agent
+    # 进而导致上面定义的两个tool也没有用到
+    print(result)
+
+# if __name__=="__main__":
+#     conditional_workflow()
+
+# 重新做一个conditional_workflow_with_agent():
+def conditional_workflow_with_agent():
+    # codex给到我的设计思路：1.先用工具节点获取同行业列表和各自PE
+    # 2.决策函数只做路由判断，LLM负责生成最终文本
+    # 3.add_conditional_edges控制分支，深度/快速两条路径都可访问到前置工具产出的同行PE数据
+    class ConditionalState(TypedDict):# 这里需要从typeDict继承
+        symbol:str
+        peers:list
+        decision:str# codex 新增一个decision
+        output:str
+    # 之所以重新做一个workflow是希望能够用到tool、agent
+    # @tool
+    # def fetch_peer_ratios(state:ConditionalState)->dict:
+    #     peers=get_company_peers(state["symbol"])
+    #     # 使用一个for循环，将上市公司及其对应的市盈率重新做一个字典，然后字典作为列表的元素，整个列表返回作为peers的value
+    #     peer_ratios=[]
+    #     for peer in peers:
+    #         financials=get_financials_with_fallback(peer)
+    #         peer_ratios.append({"symbol":peer,"pe_ratio":financials["PE比率"]})
+    #     return {"peers":peer_ratios}#目前peers对应的value为一个list，list里面的元素为字典，字典key为股票代码，value为对应给的PE值
+    
+    
+    # @tool
+    # def analysis_pe_ratios(state:ConditionalState)->Literal["深分","快分"]:
+    #     for peer in state["peers"]:
+    #         if peer["pe_ratio"]>50:
+    #             return "深分"
+    #         else:
+    #             return "快分"
+    
+    # codex的做法
+    @tool
+    def fetch_company_peers(symbol:str)->list:#工具函数用不用state:XxxState
+        """
+        获取同行业中上市的竞争对手公司的股票代码列表
+        参数：
+            symbol为上市公司股票代码(比如："NVDA"/"BMNR")
+        返回：
+            同行业上市公司的股票代码列表(比如：["NVDA","AMD","INTC"])
+        """
+        return get_company_peers(symbol)
+    @tool
+    def fetch_company_financials(symbol:str)->dict:# symbol:str用在工具函数@tool里，LLM调用工具时不必传整个state
+        """
+        获取上市公司财务数据
+        参数：
+            symbol为上市公司股票代码(比如："NVDA"/"BMNR")
+        返回：
+            对应上市公司的52周最高价、52周最低价、PE比率、毛利率等财务指标的字典
+        """
+        return get_financials_with_fallback(symbol)
+    
+    # 调用fetch_company_peers获取同行列表
+    def peer_node(state:ConditionalState):# state:ConditionalState用在节点函数里，LangGraph会自动传入完整的statte，同时要求节点必须更新/读取state
+        peer_list=fetch_company_peers.invoke(state["symbol"])# 目前来看，tool工具函数在LangGraph中基本用在节点函数中
+        return {"peers":[{"symbol":p}for p in peer_list]}# 这个推导式的结果确实变成[{"symbol":"NVDA"},{"symbol":"AVGO"},{"symbol":"AMD"}]
+    
+    # 为每个同行补齐PE数据
+    def peer_financials_node(state:ConditionalState):
+        enriched=[]
+        for peer in state["peers"]:
+            fin=fetch_company_financials.invoke(peer["symbol"])#这里注意一下peer["symbol"]写法
+            enriched.append({"symbol":peer["symbol"],"pe_ratio":fin.get("PE比率")})# fin是获取了公司金融数据的字典，.get()方法是列表的，。get( ,默认值)相较于字典名[key]更安全，因为当key不存在时，不会报错
+        return {"peers":enriched}# node都要返回字典
+    
+    # 决策函数，根据同行PE选择路径
+    def choose_path(state:ConditionalState)->Literal["深度分析","快速评估"]:
+        high=[p for p in state["peers"]if p.get("pe_ratio") and p["pe_ratio"]>50]
+        if high:
+            return "深度分析"
+        else:
+            return "快速评估"
+    
+    # 在深度分析函数中使用大模型得出结论
+    def deep_analysis(state:ConditionalState):
+        prompt=f"""
+     你是顶级对冲基金的分析师。目标公司：{state['symbol']}。
+     同行PE情况:{state['peers']}。请为我进行PE相关的深度分析。
+     字数不超过300字
+     """
+        answer=llm.invoke(prompt).content
+        return{"output":answer,"decision":"深度分析"}
+    def quick_analysis(state:ConditionalState):
+        prompt=f"""
+     你是顶级对冲基金的分析师。目标公司：{state['symbol']}。
+     同行PE情况:{state['peers']}。
+     请快速给出估值简评,100字内。
+     """
+        answer=llm.invoke(prompt).content# 通过f-string方式将prompt送进llm.invoke(prompt)中
+        return{"output":answer,"decision":"快速评估"}
+    
+    workflow=StateGraph(ConditionalState)
+    workflow.add_node("获取同行列表",peer_node)
+    workflow.add_node("补充同行PE",peer_financials_node)
+    workflow.add_node("深分",deep_analysis)
+    workflow.add_node("快分",quick_analysis)
+    #注意到这里添加节点add_node时没有添加决策函数choose_path
+    workflow.add_edge(START,"获取同行列表")
+    workflow.add_edge("获取同行列表","补充同行PE")
+    workflow.add_conditional_edges(
+        "补充同行PE",
+        choose_path,{
+            "深度分析": "深分",#左边的“深度分析”是choose_path的返回值,右边的“深分”是add_node节点时定义的节点名称
+            "快速评估":"快分"#左边的“快速评估”是choose_path的返回值，右边的“快分”是add_node节点时定义的节点名称
+            # 为什么需要{choose_path的返回值,add_node时定义的节点名称}，原因在于当choose_path返回“深度分析”时，路由到名为“深分”的节点
         }
     )
-    workflow.add_edge("深度分析",END)
-    workflow.add_edge("快速分析",END)
-
+    workflow.add_edge("深分",END)
+    workflow.add_edge("快分",END)
+    # workflow.add_node("获取同行业其他上市公司的PE",fetch_peer_ratios)
+    # workflow.add_node("分析PE比率",analysis_pe_ratios)
     app=workflow.compile()
+    result=app.invoke({"symbol":"NVDA"})
+    print(result)# 这里直接print(result)还是一样会出现打印出一坨的问题。
 
-    # 测试高PE股票(NVDA)
-    print("测试1:NVDA(高PE):")
-    result1=app.invoke({"symbol":"NVDA","pe_ratio":57})
-    print(result1)
+# if __name__=="__main__":
+#     conditional_workflow_with_agent() 
 
-    # 测试低PE股票(ASEC)
-    print("测试2:ASEC(低PE)")
-    result2=app.invoke({"symbol":"ASEC","pe_ratio":7}) 
-    print(result2)
-
-if __name__=="__main__":
-    conditional_workflow()
-
-
-# 尝试加入记忆与循环
-"""Agent可以多次调用工具直到完成任务"""
+# 现在我们已经学习了LangGraph中State、Edge、node相关概念，并且学习了如何使用add_conditional_edges()。
+# 接下来我们继续学习在LangGraph中循环与记忆。
 def loop_with_memory():
-    #循环与Memory-Agent自动决定调用次数
+    """
+    循环+记忆：让Agent在每轮根据对话历史决定是否继续调用工具
+    add_messages把每一轮的AI/工具回复自动拼接到messages里。
+    should_continue根据是否存在tool_calls来跳回tools节点
+    """
     class AgentState(TypedDict):
-        messages:Annotated[list,add_messages]# 使用add_messages
+        # messages：使用add_messages，保留所有往返消息，形成“短期记忆”。
+        messages:Annotated[list,add_messages]
         iteration:int
-    
-    @tool
-    def search_data(query:str)->str:
-        """搜索财务数据"""
-        return f"找到关于{query}的数据:PE=52,EPS=$3.5"
-    
-    @tool
-    def calculate(expression:str)->str:
-        """计算数值"""
-        return "182"
-    
-    tools=[search_data,calculate]
-    tool_node=ToolNode(tools)
 
-    # Agent节点：决定下一步行动
+    @tool
+    def fetch_profile(symbol:str)->dict:
+        """
+        获取公司信息
+        参数：
+            symbol为上市公司股票代码(比如"NVDA"/"AMD")
+        返回：
+            返回包括公司名称、行业、ipo时间、市值(百万美元)、官网、描述等内容的字典
+        """
+        return get_company_profile(symbol)
+    
+    @tool
+    def fetch_financials(symbol:str)->dict:
+        """
+        获取公司财务信息
+        参数：
+            symbol为上市公司股票代码(比如"NVDA"/"AMD")
+        返回：
+            返回包含上市公司52周最高价、52周最低价、Beta系数、PE比率、毛利率等财务信息的字典
+        """
+        return get_financials_with_fallback(symbol)
+    
+    @tool
+    def fetch_latest_news(symbol:str)->list:
+        """
+        获取公司最新一周的新闻
+        参数：
+            symbol为上市公司股票代码(比如"NVDA"/"AMD")
+        返回：
+            目标公司最新一周发生的新闻
+        """
+        from datetime import date,timedelta
+        end=date.today()
+        start=end-timedelta(days=7)
+        return get_company_news(symbol,start.isoformat(),end.isoformat())
+    
+    tools=[fetch_financials,fetch_latest_news,fetch_profile]# 在上一个conditional_workflow_with_agent()例子中，尽管我们使用了@tool来定义工具函数，但是却没有使用统一将其装进一个列表tools，再使用ToolNode()方法，而是在节点函数中，通过工具函数名.invoke(state)方式进行调用，
+    # 而这里将其装进一个列表tools，再使用ToolNode()方法
+    tool_node=ToolNode(tools)
+    # 之所以出现不同的方式，因为一个是手动调用，另一个是LLM自主决定
+    # 在conditional_workflow_with_agent例子中，在节点函数中，直接工具函数名.invoke(state)直接确定工具调用顺序
+    # 在本loop_with_memory例子中，把工具都放在一个tools列表里，打包给了tool_node,然后在agent_node中llm.bind_tools(tools)，让LLM看到用户问题后，自己决定调用哪些工具
+    # 当然我们add_node节点的时候还需要add_node("tools",tool_node)
+    # 本质上ToolNode是一个自动执行器，它会读取LLM的tool_calls，自动执行这些工具，把结果包装成ToolMessage添加到对话历史中
+
+    # 读取对话历史，决定是否再调用工具或给出最终回答
     def agent_node(state:AgentState):
         messages=state["messages"]
         iteration=state.get("iteration",0)
-        print(f"迭代{iteration+1} Agent思考中")
-        response=llm.bind_tools(tools).invoke(messages)
+        print(f"迭代{iteration+1}-Agent思考中(结合记忆长度={len(messages)})")
+        # 为什么这里iteration+1，是因为我们开始在下面app.invoke里面的"iteration":0(即初始值为0)
 
+        # 绑定工具后让LLM决定：是继续要数据(产生tool_calls)还是直接回答
+        response=llm.bind_tools(tools).invoke(
+            [SystemMessage(content="你是金融分析师，按需调用工具补全信息，信息够了就直接回答并停止调用工具")]
+            +messages
+        )
         return{
+            #add_messages会把新消息append到列表，形成“循环记忆”
             "messages":[response],
-            "iteration":iteration+1
+            "iteration":iteration+1,
         }
-    
-    # 决策：继续还是结束
+    # 有tool_calls就跳到tools，达到上限或无调用则结束
     def should_continue(state:AgentState)->Literal["tools","end"]:
-        last_messages=state["messages"][-1]
-
-        # 如果LLM返回了工具调用，继续
-        if hasattr(last_messages,"tool_calls") and last_messages.tool_calls:
-            print("→需要调用工具，继续循环")
-            return tools
-        # 否则结束
-        print("→任务完成，循环结束")
+        last_message=state["messages"][-1]
+        # 如果LLM产生工具调用，则继续循环
+        if getattr(last_message,"tool_calls",None):
+            print("需要调用工具，进入ToolNode再回来")
+            return "tools"
+        # 为防止无限循环，加一个迭代上限
+        if state.get("iteration",0)>=4:
+            print("达到迭代上限，强制结束")
+            return "end"
+        # 否则直接结束，输出最终回答
+        print("没有工具调用，结束循环")
         return "end"
-
-    # 构建图
+    
+    # 开始构建图：agent→(判定)→tools→agent，形成闭环
     workflow=StateGraph(AgentState)
     workflow.add_node("agent",agent_node)
     workflow.add_node("tools",tool_node)
+    workflow.add_edge(START,"agent")
     workflow.add_conditional_edges(
         "agent",
         should_continue,{
             "tools":"tools",
-            "end":END
-        }
+            "end":END,
+        },
     )
-    workflow.add_edge("tools","agent") #工具执行后回到Agent
-
+    workflow.add_edge("tools","agent")# 工具执行后回到Agent，形成循环
     app=workflow.compile()
 
-    # 测试
-    question="NVDA的PE是多少？如果EPS是3，合理价格应该是多少？"
+    # 测试：让Agent自己决定需要调用哪些真实函数
+    question="请用最近7天新闻和基础财务数据给我总结一下NVDA的基本面要点，如果数据不足请先补全"
     result=app.invoke({
         "messages":[HumanMessage(content=question)],
-        "iteration":0
+        "iteration":0,
     })
 
+    print("\n========= 对话回放（体现 memory） =========")
     for i,msg in enumerate(result["messages"]):
         if isinstance(msg,HumanMessage):
-            print(f"\n👤 用户: {msg.content}")
-        elif isinstance(msg, AIMessage):
+            print(f"用户:{msg.content}")
+        elif isinstance(msg,AIMessage):
             if msg.content:
-                print(f"\n🤖 AI: {msg.content}")  
+                print(f"\n AI:{msg.content}")
+
+if __name__=="__main__":
+    loop_with_memory()
+    
 
 
-# 多agent对话
-def multi_agent_supervisor():
-    """
-    多Agent对话 - Supervisor监督者模式
+    
+ 
 
-    架构：
-    ┌─────────────────────────────────────────┐
-    │         用户输入问题                    │
-    └─────────────┬───────────────────────────┘
-                  │
-                  ▼
-    ┌─────────────────────────────────────────┐
-    │      Supervisor（监督者Agent）          │
-    │  决定：该问题应该由哪个专家来回答？      │
-    └─────────┬───────────────────────────────┘
-              │
-      ┌───────┴───────┐
-      ▼               ▼
-    ┌─────────┐   ┌─────────┐   ┌─────────┐
-    │宏观分析 │   │公司分析 │   │估值分析 │
-    │  专家   │   │  专家   │   │  专家   │
-    └────┬────┘   └────┬────┘   └────┬────┘
-         │             │             │
-         └─────────────┴─────────────┘
-                       │
-                       ▼
-               返回给Supervisor
-                       │
-                       ▼
-                   输出结果
+    
+    
+        
 
-    这是2025年最推荐的多Agent架构！
-    """
 
-    print("="*50)
-    print("示例5：多Agent对话 - Supervisor监督者模式")
-    print("="*50)
 
-    # 定义状态
-    class SupervisorState(TypedDict):
-        messages: Annotated[list, add_messages]
-        next_agent: str  # 下一个要调用的agent
-
-    # 创建三个专家Agent
-
-    # 1. 宏观经济分析专家
-    @tool
-    def get_macro_data() -> dict:
-        """获取宏观经济数据"""
-        return {
-            "fed_rate": "4.0%-4.25%",
-            "cpi": 3.01,
-            "unemployment": 4.0
-        }
-
-    macro_agent = create_agent(
-        model=llm,
-        tools=[get_macro_data],
-        system_prompt="""你是宏观经济分析专家。
-        专门分析美国的利率、通胀、就业等宏观经济指标。
-        当被问到宏观经济问题时，使用get_macro_data工具获取数据并分析。
-        回答要简洁专业，50字以内。"""
-    )
-
-    # 2. 公司基本面分析专家
-    @tool
-    def get_company_info(symbol: str) -> dict:
-        """获取公司基本信息"""
-        return {
-            "name": "NVIDIA",
-            "industry": "Semiconductors",
-            "market_cap": "4.5T"
-        }
-
-    company_agent = create_agent(
-        model=llm,
-        tools=[get_company_info],
-        system_prompt="""你是公司基本面分析专家。
-        专门分析公司的行业地位、业务模式、竞争优势等。
-        当被问到公司情况时，使用get_company_info工具获取数据并分析。
-        回答要简洁专业，50字以内。"""
-    )
-
-    # 3. 估值分析专家
-    @tool
-    def get_valuation(symbol: str) -> dict:
-        """获取估值数据"""
-        return {
-            "pe": 52.0,
-            "price": 186.5,
-            "target_price": 220.0
-        }
-
-    valuation_agent = create_agent(
-        model=llm,
-        tools=[get_valuation],
-        system_prompt="""你是估值分析专家。
-        专门分析股票的PE、PB等估值指标，判断高估还是低估。
-        当被问到估值问题时，使用get_valuation工具获取数据并分析。
-        回答要简洁专业，50字以内。"""
-    )
-
-    # Supervisor节点：决定调用哪个专家
-    def supervisor_node(state: SupervisorState):
-        messages = state["messages"]
-
-        # 使用LLM决定路由
-        supervisor_prompt = """你是投资分析团队的Supervisor（监督者）。
-
-你手下有三位专家：
-1. macro_expert - 宏观经济分析专家（分析利率、通胀、就业等）
-2. company_expert - 公司基本面分析专家（分析公司业务、行业地位等）
-3. valuation_expert - 估值分析专家（分析PE、价格、是否高估等）
-
-根据用户的问题，决定应该把问题转给哪位专家。
-
-规则：
-- 如果问宏观经济、美联储、通胀 → 选择 macro_expert
-- 如果问公司业务、行业、竞争力 → 选择 company_expert
-- 如果问估值、价格、PE、是否值得买 → 选择 valuation_expert
-- 如果需要综合分析，先选择最相关的一个
-
-只回复专家名称，不要其他内容。从以下选项中选一个：
-macro_expert, company_expert, valuation_expert, FINISH
-"""
-
-        response = llm.invoke([
-            SystemMessage(content=supervisor_prompt),
-            *messages
-        ])
-
-        next_agent = response.content.strip()
-        print(f"\n🎯 Supervisor决策：将问题转给 {next_agent}")
-
-        return {"next_agent": next_agent}
-
-    # 各专家节点
-    def macro_expert_node(state: SupervisorState):
-        print("  → 宏观经济专家工作中...")
-        result = macro_agent.invoke(state)
-        return {"messages": result["messages"]}
-
-    def company_expert_node(state: SupervisorState):
-        print("  → 公司分析专家工作中...")
-        result = company_agent.invoke(state)
-        return {"messages": result["messages"]}
-
-    def valuation_expert_node(state: SupervisorState):
-        print("  → 估值分析专家工作中...")
-        result = valuation_agent.invoke(state)
-        return {"messages": result["messages"]}
-
-    # 决策函数：根据supervisor的决定路由
-    def route_to_expert(state: SupervisorState) -> Literal["macro", "company", "valuation", "end"]:
-        next_agent = state["next_agent"]
-
-        if "macro" in next_agent.lower():
-            return "macro"
-        elif "company" in next_agent.lower():
-            return "company"
-        elif "valuation" in next_agent.lower():
-            return "valuation"
-        else:
-            return "end"
-
-    # 构建图
-    workflow = StateGraph(SupervisorState)
-
-    # 添加节点
-    workflow.add_node("supervisor", supervisor_node)
-    workflow.add_node("macro", macro_expert_node)
-    workflow.add_node("company", company_expert_node)
-    workflow.add_node("valuation", valuation_expert_node)
-
-    # 定义流程
-    workflow.add_edge(START, "supervisor")
-
-    # Supervisor根据决策路由到不同专家
-    workflow.add_conditional_edges(
-        "supervisor",
-        route_to_expert,
-        {
-            "macro": "macro",
-            "company": "company",
-            "valuation": "valuation",
-            "end": END
-        }
-    )
-
-    # 专家回答后回到supervisor（可以继续问下一个专家）
-    workflow.add_edge("macro", END)
-    workflow.add_edge("company", END)
-    workflow.add_edge("valuation", END)
-
-    app = workflow.compile()
-
-    # 测试不同类型的问题
-    test_questions = [
-        "现在美国的经济形势如何？",
-        "NVDA是一家什么样的公司？",
-        "NVDA现在的估值贵不贵？"
-    ]
-
-    for i, question in enumerate(test_questions, 1):
-        print(f"\n{'='*50}")
-        print(f"[问题 {i}] {question}")
-        print('='*50)
-
-        result = app.invoke({
-            "messages": [HumanMessage(content=question)]
-        })
-
-        # 提取最后的AI回答
-        last_ai_message = None
-        for msg in reversed(result["messages"]):
-            if isinstance(msg, AIMessage) and msg.content:
-                last_ai_message = msg
-                break
-
-        if last_ai_message:
-            print(f"\n💬 回答：{last_ai_message.content}")
-        print()
-  
