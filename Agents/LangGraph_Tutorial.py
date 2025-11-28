@@ -431,13 +431,13 @@ def conditional_workflow_with_agent():
 # 接下来我们继续学习在LangGraph中循环与记忆。
 def loop_with_memory():
     """
-    循环+记忆：让Agent在每轮根据对话历史决定是否继续调用工具
     add_messages把每一轮的AI/工具回复自动拼接到messages里。
     should_continue根据是否存在tool_calls来跳回tools节点
     """
     class AgentState(TypedDict):
         # messages：使用add_messages，保留所有往返消息，形成“短期记忆”。
         messages:Annotated[list,add_messages]
+        # Annotated是python自带的类型提示工具，Annotated里面装[list,add_messages]list告诉python这是一个列表，add_messages告诉LangGraph更新时用特殊逻辑
         iteration:int
 
     @tool
@@ -490,23 +490,42 @@ def loop_with_memory():
         messages=state["messages"]
         iteration=state.get("iteration",0)
         print(f"迭代{iteration+1}-Agent思考中(结合记忆长度={len(messages)})")
-        # 为什么这里iteration+1，是因为我们开始在下面app.invoke里面的"iteration":0(即初始值为0)
+        # 在下面app.invoke里面的"iteration":0(即初始值为0)，这里iteration+1结果为1
 
-        # 绑定工具后让LLM决定：是继续要数据(产生tool_calls)还是直接回答
-        response=llm.bind_tools(tools).invoke(
-            [SystemMessage(content="你是金融分析师，按需调用工具补全信息，信息够了就直接回答并停止调用工具")]
+        # 绑定工具后让LLM决定：是继续通过工具函数获取数据(产生tool_calls)还是直接回答
+        response=llm.bind_tools(tools).invoke(# .bind_tools方法让LLM自己决定工具列表中的哪些工具
+            # SystemMessage是Langchain官方根据OpenAI、Anthropic等大模型厂家的格式——{"role":"system","content":"xxxx"} {"role":"user","content":"xxxx"} {"role":"assistant","content":"xxx"}统一格式转换
+            # Langchain中合计有SystemMessage系统指令、HumanMessage用户问题、AIMessage大模型回答、ToolMessage工具获取结果合计4种消息类型
+            # 当使用llm.bind_tools(tools).invoke()后，LLM的响应包含两种内容：1.普通文本回复AIMessage(content=xxx)。2.工具调用请求AIMessage(tol_calls=[...])。即llm的响应包括两种情况：普通文本回复+工具调用请求
+            [SystemMessage(content="你是顶级对冲基金经理，擅长投资。按需调用工具补全信息，信息够了就直接回答并停止调用工具")]
             +messages
         )
+        # 整个response等价于如下：
+        # response=llm.bind_tools(tools).invoke(
+        #     [SystemMessage(content="你是顶级对冲基金经理，擅长投资。按需调用工具补全信息，信息够了就直接回答并停止调用工具"),
+        #      HumanMessage(content=question),
+        #      AIMessage(
+        #                 content=""# 一开始为空，因为需要等工具返回结果
+        #                  tool_calls=[
+        #                             {"name":"fetch_financials","args":{"symbol":"NVDA"},"id":"xxx_xxx"...},
+        #                             {"name":"fetch_lastest_news","args":{"symboll":"NVDA","id":"xxxx"}}
+        #                             ]),
+        #      ToolMessage(content="xxx")]
+        # )
+
         return{
             #add_messages会把新消息append到列表，形成“循环记忆”
-            "messages":[response],
-            "iteration":iteration+1,
+            "messages":[response],# 此时messages的长度为4，"messages":[SystemMessage，HumanMessage，ToolMessage1，ToolMessage2]
+            "iteration":iteration+1,# 
         }
     # 有tool_calls就跳到tools，达到上限或无调用则结束
-    def should_continue(state:AgentState)->Literal["tools","end"]:
-        last_message=state["messages"][-1]
+    def should_continue(state:AgentState)->Literal["tools","end"]:# 这里规定死要么返回"tools"/要么返回"end"
+        last_message=state["messages"][-1]# 由于上面return的时候把response添加到了"messages"列表中，因此使用["messages"][-1]来获取最新的返回内容
         # 如果LLM产生工具调用，则继续循环
         if getattr(last_message,"tool_calls",None):
+            # getattr是python的内置函数，getattr(object,attribute_name,default_value)object是要访问的对象，attribute_name是属性名
+            # 整个getattr方法的意思是获取object.attribute_name属性，即获取last_message.tooll_calls
+            # 为什么不直接写的原因在于last_message不一定是AIMessage，即不一定有tool_calls属性
             print("需要调用工具，进入ToolNode再回来")
             return "tools"
         # 为防止无限循环，加一个迭代上限
@@ -515,25 +534,25 @@ def loop_with_memory():
             return "end"
         # 否则直接结束，输出最终回答
         print("没有工具调用，结束循环")
-        return "end"
+        return "end"# 上面的"tools"和下面的"end"都是路由标识
     
     # 开始构建图：agent→(判定)→tools→agent，形成闭环
     workflow=StateGraph(AgentState)
     workflow.add_node("agent",agent_node)
-    workflow.add_node("tools",tool_node)
+    workflow.add_node("tools",tool_node)# tool_node=ToolNode(tools)也是一个节点
     workflow.add_edge(START,"agent")
     workflow.add_conditional_edges(
         "agent",
         should_continue,{
-            "tools":"tools",
+            "tools":"tools",# 左边是should_continue返回的路由标识，右边是节点函数的名称
             "end":END,
         },
     )
-    workflow.add_edge("tools","agent")# 工具执行后回到Agent，形成循环
+    workflow.add_edge("tools","agent")# 工具执行后回到Agent，进而形成循环
     app=workflow.compile()
 
-    # 测试：让Agent自己决定需要调用哪些真实函数
-    question="请用最近7天新闻和基础财务数据给我总结一下NVDA的基本面要点，如果数据不足请先补全"
+    # 让Agent自己决定需要调用哪些真实函数
+    question="请用最近7天新闻和基础财务数据给我总结一下NVDA的基本面要点，如果数据不足请先调用工具获取"
     result=app.invoke({
         "messages":[HumanMessage(content=question)],
         "iteration":0,
@@ -547,12 +566,197 @@ def loop_with_memory():
             if msg.content:
                 print(f"\n AI:{msg.content}")
 
+# if __name__=="__main__":
+#     loop_with_memory()
+
+
+# 学习了LangGraph中的循环与记忆之后，继续往下研究LangGraph中的multi_agent_supervisor
+# 注意，这个例子中只涉及了不同agent的分工，没有涉及各个agent之间的配合
+# 核心是一个监督者，负责理解任务，分配给合适的专家，N个Expert Agents只负责自己擅长的领域
+def multi_agent_supervisor():
+    class SuperVisorState(TypedDict):
+        messages:Annotated[list,add_messages]
+        next_agent:str
+    
+    @tool
+    def fetch_macro_snapshot()->dict:
+        """
+        获取美国宏观经济数据
+        参数：
+            无参数输入
+        返回：
+            返回包含汇率、联邦基金目标利率、通胀(CPI、核心CPI、核心PCE)、GDP等数据的字典
+        """
+        return get_macro_economic_data()
+    
+    @tool # 之前定义节点的时候，都是直接return实际函数值，但是在这个例子里，先用变量存放实际函数值，再将其放入到字典中作为字典的value
+    def fetch_company_snapshot(symbol:str)->dict:
+        """
+        获取公司信息
+        参数：
+            symbol为上市公司股票代码(比如"NVDA"/"AMD")
+        返回：
+            返回一个字典,字典中包含两个元素,其中profile为一个包含公司名称、公司行业、公司IPO时间、公司市值(百万美元)、公司官网的字典。
+            price为一个包含最新成交价、当日最高价、当日最低价、当日开盘价、前一个交易日的收盘价等数据的字典。
+        """
+        profile=get_company_profile_with_fallback(symbol)
+        price=get_real_time_data_with_fallback(symbol)
+        return{
+            "profile":profile,
+            "price":price
+        }
+    
+    @tool
+    def fetch_valuation(symbol:str)->dict:
+        """
+        获取公司财务指标包含估值等数据
+        参数：
+            symbol为上市公司股票代码(比如"NVDA"/"AMD")
+        返回：
+            返回一个字典包含两个元素,其中valuation为一个包含52周最高价、52周最低价、Beta系数、PE比率、毛利率等数据的字典。
+            其中price为一个包含最新成交价、当日最高价、当日最低价、当日开盘价、前一个交易日的收盘价等数据的字典。
+        """
+        valuation=get_financials_with_fallback(symbol)
+        price=get_real_time_data_with_fallback(symbol)
+        return{
+            "valuation":valuation,
+            "price":price
+        }
+    macro_agent=create_agent(model=llm,
+                             tools=[fetch_macro_snapshot],
+                             system_prompt=(
+                                 "你是宏观经济分析专家,擅长解读美联储利率、通胀、就业、GDP等数据。"
+                                 "使用fetch_macro_snapshot调用项目内宏观数据工具，总结关键趋势。"
+                             ),
+                             )
+    # create_agent()是LangGraph提供的便捷函数，能创建一个带工具的Agent,参数包括model、tools、system_prompt。返回的是一个可以.invoke(state)的对象
+    company_agent=create_agent(
+        model=llm,
+        tools=[fetch_company_snapshot],
+        system_prompt=(
+            "你是公司基本面分析专家，擅长解读公司业务、行业与价格快照。"
+            "收到问题时使用fetch_company_snapshot(symbol)获取公司资料与价格。"
+        ),
+    )
+
+    valuation_agent=create_agent(
+        model=llm,
+        tools=[fetch_valuation],
+        system_prompt=(
+            "你是估值分析专家，关注PE、市销率、收入增长、股价水平。"
+            "使用fetch_valuation(symbol)获取估值与价格数据，判断高估/低估。"
+        ),
+    )
+
+    def supervisor_node(state:SuperVisorState):
+        messages=state["messages"]
+        supervisor_prompt="""
+     你是投资分析团队的supervisor(监督者)。
+     你手下有3位专家：
+     1.macro_expert:宏观经济分析专家(分析美联储、通胀、就业和GDP)
+     2.company_expert:公司基本面分析专家(行业、业务、价格快照)
+     3.valuation_expert:估值分析专家(PE、价格、高度或低估)
+
+     根据用户的问题，决定应该把问题转给哪位专家？
+     规则：
+     1.问宏观经济、美联储、通胀、就业人数→选择macro_expert
+     2.问公司业务、行业、价格快照→选择company_expert
+     3.问估值、价格贵不贵、PE→选择valuation_expert
+
+     只回复专家名称,不要其他内容。从以下选项中选一个：
+     macro_expert,company_expert,valuation_expert,FINISH
+     """
+        response=llm.invoke([
+            SystemMessage(content=supervisor_prompt),
+            *messages,
+        ])
+        next_agent=response.content.strip()
+        print(f"Supervisor决策:将问题转给{next_agent}")
+
+        return {"next_agent":next_agent}
+    
+    def macro_expert_node(state:SuperVisorState):
+        result=macro_agent.invoke(state)
+        return {"messages":result["messages"]}# 之前在agent_node中都是通过llm.invoke(xxx)的方式来获取大模型的输出，在这里直接xx_agent.invoke()获取大模型的输出
+        # # result = {                                                      
+        #     "messages": [                                              
+        #     HumanMessage("现在美国的通胀..."),  # 保留的           
+        #         AIMessage(tool_calls=[...]),         # Agent 的决策    
+        #         ToolMessage("宏观数据..."),          # 工具结果         
+        #         AIMessage(content="当前美国通胀率为3.2%，美联储维持...")
+        #     ]                                                           
+        # }
+        # create_agent()函数不需要再向上面loop_with_memory()一次性只添加一个元素到列表中，而是内部循环，直到添加完llm的回答。
+    
+    def company_expert_node(state:SuperVisorState):
+        result=company_agent.invoke(state)
+        return {"messages":result["messages"]}
+    
+    def valuation_expert_node(state:SuperVisorState):
+        result=valuation_agent.invoke(state)
+        return {"messages":result["messages"]}
+    
+    def route_to_expert(state:SuperVisorState)->Literal["macro","company","valuation","end"]:
+        next_agent=state["next_agent"].lower()
+
+        if "macro" in next_agent:
+            return 'macro'
+        if 'company' in next_agent:
+            return "company"
+        if "valuation" in next_agent:
+            return "valuation"
+        return "end"# 我不是很懂，这里为什么不是if elif: elif：,最后这个return "end"从语法上合适吗？
+    
+    workflow=StateGraph(SuperVisorState)
+    workflow.add_node("supervisor",supervisor_node)
+    workflow.add_node("macro",macro_expert_node)
+    workflow.add_node('company',company_expert_node)
+    workflow.add_node("valuation",valuation_expert_node)
+
+    workflow.add_edge(START,"supervisor")
+    workflow.add_conditional_edges(
+        "supervisor",
+        route_to_expert,{
+            "macro":"macro",
+            "company":"company",
+            "valuation":"valuation",
+            "end":END,
+        },
+    )
+    workflow.add_edge("macro",END)
+    workflow.add_edge("company",END)
+    workflow.add_edge("valuation",END)
+
+    app=workflow.compile()# app得写在循环外面
+
+    question=[
+        "现在美国的通胀和利率走向如何？",
+        "NVDA 是做什么的？股价大概多少？",
+        "NVDA 现在估值贵不贵？",
+    ]# 尽管question列表中一次性写了3个问题作为3个元素，注意区分for循环中两个不同question
+
+    for i, question in enumerate(question, 1):
+        print(f"\n{'=' * 50}")
+        print(f"[问题 {i}] {question}")
+        print('=' * 50)
+
+        result = app.invoke({
+            "messages": [HumanMessage(content=question)],
+        })
+
+        last_ai_message = None# 先设置一个定义了空变量last_ai_message用于存放AIMessage(content="xxxxxx")的结果
+        for msg in reversed(result["messages"]):# 这里为什么要reversed()的原因在于，第一个AIMessage大概率content为空，tool_calls不为空，而reversed()直接找到最后一条有内容的AIMessage。
+            # 这里获得的result["messages"]是一个列表，然后用if and来要求前后两个条件都需要满足：isinstance(msg,AIMessage)要求msg为AIMessage实例，msg.content要求msg里面的content属性不为空
+            if isinstance(msg, AIMessage) and msg.content:# 检查msg是否为AIMessage的实例
+                last_ai_message = msg# 然后将符合的msg赋给变量last_ai_message，使用break跳出循环
+                break
+
+        if last_ai_message:# 之前在for循环中将content内容传递给了last_ai_message变量，如果不为空，将其.content属性即大模型AIMessage的输出打印出来
+            print(f"\n💬 回答：{last_ai_message.content}")
+        print()
+
 if __name__=="__main__":
-    loop_with_memory()
-    
-
-
-    
+    multi_agent_supervisor()
  
 
     
