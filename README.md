@@ -13,8 +13,15 @@ AI investment assistant based on large language models
 本项目（及作者）对用户因滥用 API 密钥而导致的任何后果（如账户被封）概不负责。
 ============================================================================
 
-### v 2.5版本
-#### 受到NOFX项目的启发，后续将接入券商的API进行实盘，先创建一个.env.example文件。
+
+### V3.0版本-规范化之前的fundamental_analyst.py文件，并将新面向对象方式获取金融数据源方式存放在Agents/data_resouce.py文件中
+#### 面向对象的方式重写fundamental_analyst.py文件。
+之前我们是通过load_dotenv()获取.env文件中金融数据源和大模型的API KEY，然后写get_xxx(symbol,strtime,endtime):函数return{}的方式将数据以字典方式返回。这种方式的缺点在于各个函数之间没有联系，比较难以管理。我们以面向对象的解决方式重写fundamental_analyst.py中的get_xx函数。class类你可以想象成是奶茶配方，类中的属性和方法，你可以想象成是奶茶配方中的原料要求和制作步骤。class MilkTea  naicha_1=MilkTea("加芋泥","热","三分糖")，naicha_1就是一个对象，def pack_it(self):print f"请为我打包这杯奶茶"这就是其内部方法，naicha_1.pack_it()调用其方法打包这杯奶茶。所有奶茶都会用杯子装，都会送吸管，这就是配方class里构造函数def __init__()需要干的事情。_xxx()函数 _开头表示“内部变量”，可以通过方法获取、修改公开变量，但不能直接修改。这就是所谓的封装：把对象的隐私数据隐藏起来，只留“正规接口”给外部使用。
+    具体来看，在date_resource中，我们定义了DataProvider()类，在_init_中，初始化了self.fred_client/self.finnhub_client/self.av_api_key。定义了_xx内部函数，在调用的时候，首先是对象=类()，然后对象.方法()的方式获取值。注意内部函数_xx_func()不能保留在class外面。
+
+
+### v2.5版本
+#### 受到NOFX项目的启发，后续将接入券商的API进行实盘。但是目前距离真正的落地还有一段距离，后续的思路是首先项目规范化，然后再补充一些功能。
 
 ### v2.4版本
 #### 理解LangGraph和Agent——LangGraph_Tutorial.py

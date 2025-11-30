@@ -556,7 +556,7 @@ def get_company_profile_with_fallback(symbol:str) -> str:
         # 先尝试Finnhub
         profile=finnhub_client.company_profile2(symbol=symbol)
         return{
-            '金融数据源来源':'Finnhub',
+            '金融数据来源':'Finnhub',
             '名称':profile.get('name'),
             '行业':profile.get('finnhubIndustry'),
             'ipo时间':profile.get('ipo'),
