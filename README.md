@@ -13,11 +13,13 @@ AI investment assistant based on large language models
 本项目（及作者）对用户因滥用 API 密钥而导致的任何后果（如账户被封）概不负责。
 ============================================================================
 
-
+### V3.2版本-对之前创建的DataProvider等进行测试
+#### 创建test文件夹，并在其中创建__init__.py、confitest.py test_data_provider_mock.py和test_data_provider.py
+之前我们创建BaseFetcher抽象基类——继承ABC，并在其中定义了获取公司profile、获取价格quote等方法，使用FinnhubFetcher/AlphaVantageFetcher等来继承BaseFetcher，并根据finnhub和alphavantage数据源的不同重写了相关方法。注意，从BaseFetcher开始，基本上一个类就是一个py文件。现在我们来进行相关测试。测试能够在开发早期发现问题，进而减少损失——比如我们日后的开发很多时候需要付费调用API，但是如果不小心写错字符串或者别的情况，往往要等到实际执行时才发现，因此考虑使用测试。你定义了一个函数A,测试就是test_A():result=A(参数) assert result==某个结果。同时还可以使用Mock约定return_value、side_effect，观察是否能够返回预设的结果。我们可以自己做一个数据源A，然后直接调用A，避免浪费付费API的调用。在测试中,需要import pytest，定义函数时需要以@pytest.fixture作为装饰器，遵循三段式AAA：Arrange→Act→assert，test_函数：中会判断assert xxx==yy。我们会使用Mock，通过from unittest import Mock,然后xxx=Mock()，我们还会经常用到参数化测试，格式为@pytest.mark.parametrize("xx,yy",[(1-1,1-2),(2-1,2-2),(3-1,3-2)])的形式，def test_xxx(xx,yy)。
 
 ### V3.1版本-在之前data_souce.py文件基础上进行根据继承、抽象基类和多态来进行修改
 #### 在Agents中创建data_fechers文件夹以及data_provider.py
-在data_resouce.py文件中，我们是在构造方法__init__(self)中，通过load_dotenv来进行self.fred_client/ self.finnhub_client/self.av_api_key的初始化。本质上我们是将之前全局变量finnhub_client变为类属性self.finnhub_client,再调用Finnhub中的.方法。FRED和Alpha Vantage也是类似。本次我们根据继承、抽象基类@abstractmethod和多态来进一步模块化代码。在具体讲解如何继承、抽象基类和多态之前，首先回顾一下最开始的fundamental_analyst.py，get_xx函数+全局变量finnhub_client，然后在data_resouce.py中通过class中方法来获取金融数据源。本次我们搞了抽象基类，其标志为class 类名(ABC)，即“继承”自ABC，因此你需要from abc import ABC所谓继承就是你可以继承其属性+重写其方法，因此我们直接在抽象基类的方法中写pass即可，但是写了pass就必须要在继承时重写，因此需要方法前面写一个@abstractmethod。还有一点需要注意，继承时，需要在构造函数中写super.__init__()来获取父类的属性。在data_provider.py中，需要from data_fetchers.base_fetcher import BaseFetcher。
+在data_resouce.py文件中，我们是在构造方法__init__(self)中，通过load_dotenv来进行self.fred_client/ self.finnhub_client/self.av_api_key的初始化。本质上我们是将之前全局变量finnhub_client变为类属性self.finnhub_client,再调用Finnhub中的.方法。FRED和Alpha Vantage也是类似。本次我们根据继承、抽象基类@abstractmethod和多态来进一步模块化代码。在具体讲解如何继承、抽象基类和多态之前，首先回顾一下最开始的fundamental_analyst.py，get_xx函数+全局变量finnhub_client，然后在data_resouce.py中通过class中方法来获取金融数据源。本次我们搞了抽象基类，其标志为class 类名(ABC)，即“继承”自ABC，因此你需要from abc import ABC所谓继承就是你可以继承其属性+重写其方法，因此我们直接在抽象基类的方法中写pass即可，但是写了pass就必须要在继承时重写，因此需要方法前面写一个@abstractmethod。还有一点需要注意，继承时，需要在构造函数中写super.__init__()来获取父类的属性。在data_provider.py中，需要from data_fetchers.base_fetcher import BaseFetcher。我们在data_fetchers文件中写了一个空的__init__.py文件，因此可以作为包package进行from import。通过继承、抽象基类+多态的方式改写，后续我们如果需要添加新的数据源，不再需要在try-except里面再嵌套try-except，同时抽象基类中规定了返回值格式也能提高代码健壮性。作为调度器的data_provider.py对外提供简单接口函数，对内自动切换数据源。自此，我们实现了从之前一个py文件里面存一堆get_xxx函数，变为一个py文件是一个类class。
 
 
 ### V3.0版本-规范化之前的fundamental_analyst.py文件，并将新面向对象方式获取金融数据源方式存放在Agents/data_resouce.py文件中

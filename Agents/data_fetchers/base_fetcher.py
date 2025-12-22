@@ -56,6 +56,7 @@ class BaseFetcher(ABC):
         返回：
             返回52周最高/价、Beta系数、最新数据更新时间等数据信息的字典
         """
+        pass
     
     def is_available(self)->bool:
         """

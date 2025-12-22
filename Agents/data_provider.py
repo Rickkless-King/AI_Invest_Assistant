@@ -1,10 +1,11 @@
 import os
 from dotenv import load_dotenv
 from typing import List,Dict,Any# 类型注解，让代码更清晰比如List[BaseFetcher]表示这是一个装BaseFetcher子类的列表
-from data_fetchers.base_fetcher import BaseFetcher
-from data_fetchers.finnhub_fetcher import FinnhubFetcher #这里的data_fetchers文件夹和data_provider.py文件均处于Agents目录下，属于同级别目录，因此from data_fetchers.xxx
-from data_fetchers.av_fetcher import AlphaVantageFetcher# 从data_fetcher包中导入抽象基类和两个数据源子类
-# 而finnhub_fetcher.py和base_fetcher.py在同一个文件夹里面，因此在finnhub_fetcher.py中使用.base_fetcher
+from .data_fetchers.base_fetcher import BaseFetcher
+from .data_fetchers.finnhub_fetcher import FinnhubFetcher
+from .data_fetchers.av_fetcher import AlphaVantageFetcher
+# 包内部导入使用相对导入（.data_fetchers），表示从当前包(agents)的data_fetchers子包导入
+# 这样无论从哪里运行代码，导入路径都是正确的
 
 # 原来的fundamental_analyst.py是将所有get_xx函数挤在一个文件里，拆分代码是做模块化：base_fetcher.py抽象基类，finnhub_fetcher.py/av_fetcher.py这两个各自装一个数据源相关的代码
 # __init__.py告诉pythondata_fetcher文件夹是一个模块/package
