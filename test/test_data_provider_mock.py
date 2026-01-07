@@ -9,7 +9,11 @@ from agents.data_provider import DataProvider
 
 class TestDataProviderMocked:
     """使用Mock对象的测试"""
+    # patch是python unittest.mock模块提供的装饰器或者说上下文管理器，用于在测试时临时替换真实对象
+    # 语法1：作为装饰器使用 @patch('模块路径.要替换的对象') def test_函数名(self,mock_object):其中mock_object就是被替换后的假对象
+    # 若@patch('模块.类A')  @patch('模块.类B') 则def test_xx(self,mock_B,mock_A)
     @patch('agents.data_fetchers.finnhub_fetcher.finnhub.Client')  
+    # 即找到agents/data_fetchers/finnhub_fetcher.py文件中的finnhub_Client类，把其替换为mock_finnhub_client
     def test_finnhub_api_call(self,mock_finnhub_client):
         """测试：模拟FinnhubAPI响应"""
         # Arrange:设置Mock返回值
@@ -53,7 +57,7 @@ class TestDataProviderMocked:
 
         # Assert
         assert result['name']=="Backup Data"  # Mock返回的数据用的是英文键名
-        assert result["source"]=="MockSource2"  # 修复：拼写错误 souce → source
+        assert result["source"]=="MockSource2" 
         mock_fetcher1.fetch_company_profile.assert_called_once()
         mock_fetcher2.fetch_company_profile.assert_called_once()
 

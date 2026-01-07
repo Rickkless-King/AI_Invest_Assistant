@@ -1,3 +1,9 @@
+# ===== 60天冲刺项目核心依赖 =====
+
+# Web前端
+streamlit>=1.32.0
+
+# 原有依赖
 aiofiles==23.2.1
 aiohappyeyeballs==2.6.1
 aiohttp==3.12.15
