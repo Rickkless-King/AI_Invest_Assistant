@@ -1,6 +1,14 @@
-# AI量化交易系统 - 完整概览
+# AI量化交易系统 - 完整项目概览
 
-## 📋 系统总结
+## 📋 项目定位
+
+这是一个**三合一综合项目**，包含：
+
+1. **🚀 生产级量化交易系统** - 基于LangGraph的OKX加密货币自主交易系统
+2. **📚 120天完整课程体系** - 从Python基础到AI量化交易的系统化教学资源
+3. **💼 60天求职冲刺计划** - 针对AI/量化/全栈岗位的求职准备方案
+
+## 🎯 系统总结（交易系统部分）
 
 这是一个基于LangGraph的自主AI量化交易系统，模仿NOFX实现了策略自主选择、参数优化和回测分析。
 
@@ -32,47 +40,38 @@
 
 ---
 
-## 📚 推荐阅读顺序
+## 📚 推荐阅读顺序（三条主要路径）
 
-### 第一阶段：快速入门（15分钟）
+### 🎯 根据你的目标选择阅读路径
 
-#### 1. [START_HERE.md](START_HERE.md)
-**目的**: 了解项目背景和快速启动
-- 项目定位
-- 环境配置
-- 快速启动命令
+#### **路径A：理解量化交易系统本身**（适合技术学习、代码阅读）
 
-#### 2. [ARCHITECTURE.md](ARCHITECTURE.md)
-**目的**: 理解系统整体架构
-- 系统架构图
-- 技术栈选择
-- 模块职责划分
+**第一阶段：快速入门（15分钟）**
 
-#### 3. [STRATEGY_README.md](STRATEGY_README.md)
-**目的**: 了解本系统与NOFX的对比
-- 核心功能对比
-- 已实现功能
-- 未来规划
+1. **[SYSTEM_OVERVIEW.md](SYSTEM_OVERVIEW.md)（本文）**
+   - 项目整体定位
+   - 三合一结构说明
+   - 快速导航
 
----
+2. **[ARCHITECTURE.md](ARCHITECTURE.md)**
+   - 系统架构图（Mermaid）
+   - 技术栈选择
+   - 模块职责划分
+   - 核心流程图
 
-### 第二阶段：数据层理解（20分钟）
+3. **[OKX_API_GUIDE.md](OKX_API_GUIDE.md)**
+   - OKX API认证方式
+   - 主要接口说明
+   - Demo账户配置
 
-#### 4. [OKX_API_GUIDE.md](OKX_API_GUIDE.md)
-**目的**: 了解OKX API的使用
-- API认证方式
-- 主要接口说明
-- Demo账户配置
+**第二阶段：数据层理解（20分钟）**
 
-#### 5. [HISTORICAL_DATA_GUIDE.md](HISTORICAL_DATA_GUIDE.md) ⭐ **重点**
-**目的**: 深入理解数据管理系统
-- 数据库结构设计
-- 自动化数据管理流程
-- 缺口检测与填充逻辑
-- 性能优化方案
-- 完整API文档
-
-**关键代码**: [historical_data_manager.py](backend/data_fetchers/historical_data_manager.py)
+4. **[HISTORICAL_DATA_GUIDE.md](HISTORICAL_DATA_GUIDE.md) ⭐ 重点**
+   - 数据库结构设计
+   - 自动化数据管理流程
+   - 缺口检测与填充逻辑
+   - 性能优化方案
+   - 关键代码：[historical_data_manager.py](backend/data_fetchers/historical_data_manager.py)
 
 ---
 
@@ -191,18 +190,103 @@ streamlit run frontend/streamlit_app.py
 
 ---
 
-## 🗂️ 文件结构总览
+#### **路径B：系统化学习编程（120天课程体系）**（适合转行学习、技能提升）
+
+**快速开始**
+
+1. **[START_HERE.md](START_HERE.md)**
+   - 120天转行之旅介绍
+   - 学习体系说明
+   - 每日学习流程
+   - 时间规划和里程碑
+
+2. **[learning/Learning_Path/MASTER_CURRICULUM.md](learning/Learning_Path/MASTER_CURRICULUM.md)**
+   - 完整120天课程大纲
+   - 17周详细内容规划
+   - 每周学习目标
+
+3. **[learning/Learning_Path/README.md](learning/Learning_Path/README.md)**
+   - 学习路径指南
+   - 课程使用说明
+
+**开始学习（按天进行）**
+
+4. **Week 1-2: Python高级特性**
+   - Day 1: [OOP基础](learning/Learning_Path/Week_01-02_Python_Advanced/Day_01_OOP_Basics.md)
+   - Day 2-7: 继续按顺序学习
+   - 完成 [Exercises/Day_01/](learning/Exercises/Day_01/) 作业
+   - 对比 [Solutions/Day_01/](learning/Solutions/Day_01/) 答案
+
+5. **Week 3-4: LangChain与交易逻辑**
+   - 继续后续周次的学习
+
+6. **持续120天**
+   - 每天3-4小时（工作日）
+   - 每周6-8小时（周末）
+   - 参考 [PROGRESS_TRACKER.md](learning/Learning_Path/PROGRESS_TRACKER.md) 追踪进度
+
+---
+
+#### **路径C：求职冲刺准备（60天计划）**（适合求职转行、简历准备）
+
+**立即行动**
+
+1. **[60_DAY_SPRINT_PLAN.md](60_DAY_SPRINT_PLAN.md) ⭐ 核心计划**
+   - 详细的60天时间表
+   - 每周具体目标
+   - 里程碑检查点
+   - 从Day 1到Day 60的完整规划
+
+2. **[QUICK_START_60_DAYS.md](QUICK_START_60_DAYS.md)**
+   - 60天冲刺快速开始
+   - 关键行动项
+
+3. **[ACTION_TODAY.md](ACTION_TODAY.md) ⭐ 今天就做**
+   - 立即可执行的行动清单
+   - 投简历的具体步骤
+   - GitHub项目展示优化
+   - 领英/猎聘账号设置
+
+4. **[RESUME_TEMPLATE.md](RESUME_TEMPLATE.md)**
+   - 三个版本的简历模板
+   - AI工程师版
+   - 量化交易版
+   - 全栈开发版
+
+5. **项目演示准备**
+   - 完善 Streamlit 界面
+   - 准备项目演示视频
+   - 撰写技术博客
+   - GitHub README 优化
+
+6. **面试准备**
+   - 技术问题准备
+   - 项目讲解练习
+   - 系统架构解释能力
+
+---
+
+## 🗂️ 完整文件结构总览
 
 ```
 AI_Invest_Assistant/
-├── 📄 文档（按阅读顺序）
-│   ├── START_HERE.md              # [1] 快速入门
-│   ├── ARCHITECTURE.md            # [2] 系统架构
-│   ├── STRATEGY_README.md         # [3] 系统对比
-│   ├── OKX_API_GUIDE.md          # [4] API文档
-│   ├── HISTORICAL_DATA_GUIDE.md  # [5] ⭐ 数据管理
-│   ├── STRATEGY_AGENT_GUIDE.md   # [7] ⭐ Agent核心
-│   └── SYSTEM_OVERVIEW.md        # 本文件
+├── 📄 核心文档
+│   ├── SYSTEM_OVERVIEW.md         # ⭐ 本文件 - 项目总览和三条阅读路径
+│   ├── START_HERE.md              # [路径B] 120天学习快速开始
+│   ├── ARCHITECTURE.md            # [路径A] 系统架构图
+│   ├── OKX_API_GUIDE.md          # [路径A] OKX API文档
+│   ├── HISTORICAL_DATA_GUIDE.md  # [路径A] ⭐ 数据管理核心
+│   ├── STRATEGY_AGENT_GUIDE.md   # [路径A] ⭐ Agent工作流程
+│   └── README.md                  # 详细的项目说明（68KB）
+│
+├── 📄 求职冲刺文档
+│   ├── 60_DAY_SPRINT_PLAN.md     # [路径C] ⭐ 60天详细计划
+│   ├── QUICK_START_60_DAYS.md    # [路径C] 快速开始
+│   ├── ACTION_TODAY.md            # [路径C] ⭐ 今日行动清单
+│   ├── RESUME_TEMPLATE.md         # [路径C] 三版简历模板
+│   ├── CHANGELOG_V2.md            # 版本更新日志
+│   ├── LEARNING_SYSTEM_SUMMARY.md # 学习系统总结
+│   └── 每日学习流程指南.md        # 中文学习指南
 │
 ├── 🔧 后端代码
 │   ├── data_fetchers/
@@ -221,15 +305,81 @@ AI_Invest_Assistant/
 │
 ├── 🎨 前端代码
 │   └── frontend/
-│       └── streamlit_app.py                  # Web界面
+│       ├── streamlit_app.py                  # ⭐ Streamlit Web界面（1,418行）
+│       │   ├── 📊 实时行情页面
+│       │   ├── 🔑 API配置与交易页面
+│       │   ├── 🔍 AI分析页面
+│       │   ├── 📈 历史数据页面
+│       │   ├── 💰 交易记录页面
+│       │   └── 📉 策略回测页面
+│       └── styles.py                          # 自定义样式
+│
+├── 📚 学习资源（120天课程）
+│   ├── Learning_Path/                         # [路径B] 教材中心
+│   │   ├── MASTER_CURRICULUM.md              # ⭐ 120天完整大纲
+│   │   ├── README.md                          # 学习路径指南
+│   │   ├── PROGRESS_TRACKER.md                # 进度追踪表
+│   │   ├── QUICK_INDEX.md                     # 快速索引
+│   │   ├── Week_01-02_Python_Advanced/       # 第1-2周：Python高级
+│   │   ├── Week_03-04_LangChain_Trading/     # 第3-4周：LangChain
+│   │   ├── Week_05-06_Web_Development/       # 第5-6周：Web开发
+│   │   ├── Week_07-08_Realtime_AI/           # 第7-8周：实时AI
+│   │   ├── Week_09-10_Risk_Control/          # 第9-10周：风控系统
+│   │   ├── Week_11-12_Deployment/            # 第11-12周：部署DevOps
+│   │   ├── Week_13-14_Optimization/          # 第13-14周：性能优化
+│   │   └── Week_15-17_Job_Ready/             # 第15-17周：求职准备
+│   │
+│   ├── Exercises/                             # [路径B] 练习题（56天）
+│   │   ├── Day_01/
+│   │   │   └── homework_01.py                 # 待完成作业
+│   │   ├── Day_02/ ... Day_56/
+│   │
+│   ├── Solutions/                             # [路径B] 标准答案
+│   │   ├── Day_01/
+│   │   │   └── homework_01_solution.py        # 参考答案
+│   │   └── Day_02/ ... Day_56/
+│   │
+│   └── tutorials/                             # 教程代码
+│       ├── data_fetchers/                     # 多数据源适配器示例
+│       │   ├── base_fetcher.py                # 抽象基类示例
+│       │   ├── av_fetcher.py                  # Alpha Vantage
+│       │   ├── finnhub_fetcher.py             # Finnhub
+│       │   └── __init__.py
+│       ├── LangGraph_Tutorial.py              # LangGraph详细教程
+│       ├── tools_and_agents.py                # Agent工具使用
+│       ├── fundamental_analyst.py             # 金融分析基础
+│       └── data_provider.py                   # 数据提供者模式
 │
 ├── 🧪 测试脚本
-│   ├── test_historical_data.py               # [8.1] 数据测试
-│   └── test_strategy_system.py               # [8.2] 策略测试
+│   ├── test_historical_data.py               # [路径A-8.1] 数据测试
+│   ├── test_strategy_system.py               # [路径A-8.2] 策略测试
+│   ├── test_okx_demo.py                      # OKX API测试
+│   ├── test_data_provider.py                 # 数据提供者测试
+│   ├── test_data_provider_mock.py            # Mock测试
+│   ├── test_agent_fix.py                     # Agent修复测试
+│   └── conftest.py                            # Pytest配置
 │
-└── 💾 数据
-    └── data/
-        └── historical_klines.db              # SQLite数据库
+├── 💾 数据与数据库
+│   ├── data/
+│   │   └── historical_klines.db              # 历史K线数据库（240KB）
+│   └── crypto_trading.db                     # 主交易数据库（88KB）
+│       ├── klines表                           # K线数据
+│       ├── trades表                           # 交易记录
+│       ├── analysis表                         # 分析结果
+│       ├── backtest_results表                 # 回测结果
+│       └── system_logs表                      # 系统日志
+│
+├── 📦 配置和依赖
+│   ├── requirements.txt                       # Python依赖（83个包）
+│   ├── .env                                   # API密钥配置（需自行创建）
+│   └── config/                                # 配置文件目录
+│
+└── 🔧 其他资源
+    ├── .git/                                  # Git版本控制
+    ├── .vscode/                               # VS Code配置
+    ├── venv/                                  # Python虚拟环境
+    ├── logs/                                  # 日志文件
+    └── demo_*.py                              # 演示脚本（多态、接口等）
 ```
 
 ---
@@ -410,17 +560,86 @@ AI_Invest_Assistant/
 
 ---
 
-## 🎉 总结
+## 🧭 快速导航 - 我应该从哪里开始？
 
-这个系统实现了：
-✅ 自主策略选择和优化（NOFX核心功能）
+### 🎯 根据你的目标选择起点：
+
+| 你的目标 | 推荐路径 | 第一步 | 预计时间 |
+|---------|---------|--------|---------|
+| **理解这个量化交易系统** | 路径A | [ARCHITECTURE.md](ARCHITECTURE.md) | 2-3小时 |
+| **系统化学习编程（转行）** | 路径B | [START_HERE.md](START_HERE.md) | 120天 |
+| **快速求职冲刺** | 路径C | [ACTION_TODAY.md](ACTION_TODAY.md) | 60天 |
+| **快速体验系统运行** | 快速验证 | `streamlit run frontend/streamlit_app.py` | 30分钟 |
+| **深入研究Agent实现** | 路径A-第四阶段 | [STRATEGY_AGENT_GUIDE.md](STRATEGY_AGENT_GUIDE.md) | 1小时 |
+| **了解数据管理方案** | 路径A-第二阶段 | [HISTORICAL_DATA_GUIDE.md](HISTORICAL_DATA_GUIDE.md) | 30分钟 |
+
+### 💼 特定场景快速跳转：
+
+**面试准备**
+- 简历模板：[RESUME_TEMPLATE.md](RESUME_TEMPLATE.md)
+- 项目讲解：[ARCHITECTURE.md](ARCHITECTURE.md) 架构图部分
+- 技术问题：本文"关键技术概念"部分
+
+**代码学习**
+- 新手入门：[learning/Learning_Path/Week_01-02_Python_Advanced/Day_01_OOP_Basics.md](learning/Learning_Path/Week_01-02_Python_Advanced/Day_01_OOP_Basics.md)
+- Agent开发：[backend/agents/strategy_agent.py](backend/agents/strategy_agent.py)
+- 策略开发：[backend/strategies/](backend/strategies/) 目录
+
+**项目优化**
+- 添加新策略：参考 [backend/strategies/rsi_strategy.py](backend/strategies/rsi_strategy.py)
+- 优化Agent：参考 [STRATEGY_AGENT_GUIDE.md](STRATEGY_AGENT_GUIDE.md)
+- 数据管理：参考 [HISTORICAL_DATA_GUIDE.md](HISTORICAL_DATA_GUIDE.md)
+
+---
+
+## 🎉 项目总结
+
+### 📦 这是一个三合一综合项目：
+
+**1️⃣ 生产级量化交易系统**
+✅ 自主策略选择和优化（模仿NOFX核心功能）
 ✅ 自动化数据管理（持久化+智能更新）
-✅ 完整回测系统（8项指标）
-✅ Web交互界面（实时体验）
-✅ LLM驱动决策（可解释AI）
+✅ 完整回测系统（8项性能指标）
+✅ Streamlit Web交互界面（6个功能页面）
+✅ LangGraph驱动的Multi-Agent系统
+✅ OKX加密货币交易API集成
 
-**数据提升**: 4天 → 41天+，100条 → 1000条+
-**性能提升**: API调用 → 数据库缓存，50倍加速
-**智能提升**: 人工调参 → AI自动优化
+**性能数据**:
+- 数据提升: 4天 → 41天+，100条 → 1000条+
+- 性能提升: API调用 → 数据库缓存，50倍加速
+- 智能提升: 人工调参 → AI自动优化
 
-现在您拥有一个完整的、可自主运行的量化交易系统！🚀
+**2️⃣ 120天完整课程体系**
+✅ 17周系统化教材（从Python到LangGraph）
+✅ 56天配套习题 + 标准答案
+✅ 完整的学习路径和进度追踪
+✅ 涵盖：OOP、测试、LangChain、Web开发、部署
+
+**课程规模**:
+- 教材: 87个Markdown文件
+- 习题: 56天完整练习
+- 代码: 68个Python文件
+- 教程: 多数据源适配器、Agent示例
+
+**3️⃣ 60天求职冲刺计划**
+✅ 详细的时间表和里程碑
+✅ 三版专业简历模板（AI/量化/全栈）
+✅ 今日行动清单（立即可执行）
+✅ GitHub项目展示优化
+✅ 面试准备资源
+
+**求职资源**:
+- 简历模板: 3个版本（针对不同岗位）
+- 项目演示: Streamlit完整界面
+- 技术深度: 完整的系统架构文档
+- 实战经验: OKX实盘交易能力
+
+---
+
+### 🚀 现在你拥有：
+
+✨ **一个完整的生产级项目** - 可以写进简历的真实系统
+✨ **一套系统化的学习资源** - 从零到就业的完整路径
+✨ **一个清晰的求职计划** - 60天转行行动方案
+
+**根据你的目标选择路径，立即开始！** 🎯
