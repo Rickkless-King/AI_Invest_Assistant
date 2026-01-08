@@ -44,12 +44,11 @@ fetcher, db = init_components()
 with st.sidebar:
     # Logo和标题
     st.markdown("""
-        <div style="text-align: center; padding: 1rem 0 2rem 0;">
-            <h1 style="font-size: 2rem; margin: 0; background: linear-gradient(135deg, #4a90e2 0%, #64b5f6 100%);
-                       -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 700;">
+        <div style="text-align: center; padding: 1.5rem 0 2rem 0;">
+            <h1 style="font-size: 2.25rem; margin: 0; color: #D97757; font-weight: 800;">
                 🚀 AI量化交易
             </h1>
-            <p style="color: #9ca3af; font-size: 0.875rem; margin-top: 0.5rem;">
+            <p style="color: #6B6B68; font-size: 0.95rem; margin-top: 0.75rem; font-weight: 500;">
                 智能策略 · 自动优化 · 风险控制
             </p>
         </div>
@@ -205,8 +204,9 @@ if page == "📊 实时行情":
 
             # 使用Streamlit的line_chart（带标题）
             st.markdown(f"""
-                <div class="custom-card">
-                    <h4 style="color: #4a90e2; margin-bottom: 1rem;">📊 {symbol} 价格走势 ({timeframe})</h4>
+                <div class="custom-card" style="padding: 1.5rem;">
+                    <h4 style="color: #1A1A1A; margin-bottom: 0.5rem; font-weight: 700;">📊 {symbol} 价格走势 ({timeframe})</h4>
+                    <div style="width: 40px; height: 3px; background-color: #D97757; border-radius: 2px;"></div>
                 </div>
             """, unsafe_allow_html=True)
 
@@ -222,21 +222,22 @@ if page == "📊 实时行情":
             with col1:
                 rsi = latest['rsi']
                 if rsi > 70:
-                    rsi_status = "超买"
-                    rsi_badge = get_status_badge("超买 🔴", "error")
+                    rsi_status = "超买 🔴"
+                    rsi_type = "error"
                 elif rsi < 30:
-                    rsi_status = "超卖"
-                    rsi_badge = get_status_badge("超卖 🟢", "success")
+                    rsi_status = "超卖 🟢"
+                    rsi_type = "success"
                 else:
-                    rsi_status = "正常"
-                    rsi_badge = get_status_badge("正常 🟡", "warning")
+                    rsi_status = "正常 🟡"
+                    rsi_type = "warning"
 
                 st.markdown(
                     get_metric_card_html(
                         "RSI 指标",
                         f"{rsi:.2f}",
-                        rsi_badge,
-                        "📊"
+                        rsi_status,
+                        "📊",
+                        rsi_type
                     ),
                     unsafe_allow_html=True
                 )
@@ -245,18 +246,19 @@ if page == "📊 实时行情":
                 macd = latest['macd']
                 macd_signal = latest['macd_signal']
                 if macd > macd_signal:
-                    macd_status_text = "金叉"
-                    macd_badge = get_status_badge("金叉 🔥", "success")
+                    macd_status_text = "金叉 🔥"
+                    macd_type = "success"
                 else:
-                    macd_status_text = "死叉"
-                    macd_badge = get_status_badge("死叉 ❄️", "info")
+                    macd_status_text = "死叉 ❄️"
+                    macd_type = "info"
 
                 st.markdown(
                     get_metric_card_html(
                         "MACD 指标",
                         f"{macd:.4f}",
-                        macd_badge,
-                        "📈"
+                        macd_status_text,
+                        "📈",
+                        macd_type
                     ),
                     unsafe_allow_html=True
                 )
@@ -269,20 +271,24 @@ if page == "📊 实时行情":
 
                 if price > bb_upper:
                     bb_position = "上轨"
-                    bb_badge = get_status_badge("上轨 ⚠️", "warning")
+                    bb_status = "上轨 ⚠️"
+                    bb_type = "warning"
                 elif price < bb_lower:
                     bb_position = "下轨"
-                    bb_badge = get_status_badge("下轨 💚", "success")
+                    bb_status = "下轨 💚"
+                    bb_type = "success"
                 else:
                     bb_position = "中间"
-                    bb_badge = get_status_badge("中间 ⚪", "info")
+                    bb_status = "中间 ⚪"
+                    bb_type = "info"
 
                 st.markdown(
                     get_metric_card_html(
                         "布林带位置",
                         bb_position,
-                        bb_badge,
-                        "📍"
+                        bb_status,
+                        "📍",
+                        bb_type
                     ),
                     unsafe_allow_html=True
                 )
@@ -294,18 +300,22 @@ if page == "📊 实时行情":
                 vol_trend = "放量" if current_vol > vol_avg * 1.5 else "缩量" if current_vol < vol_avg * 0.5 else "正常"
 
                 if vol_trend == "放量":
-                    vol_badge = get_status_badge("放量 📊", "success")
+                    vol_status = "放量 📊"
+                    vol_type = "success"
                 elif vol_trend == "缩量":
-                    vol_badge = get_status_badge("缩量 📉", "warning")
+                    vol_status = "缩量 📉"
+                    vol_type = "warning"
                 else:
-                    vol_badge = get_status_badge("正常 📈", "info")
+                    vol_status = "正常 📈"
+                    vol_type = "info"
 
                 st.markdown(
                     get_metric_card_html(
                         "成交量趋势",
                         vol_trend,
-                        vol_badge,
-                        "📊"
+                        vol_status,
+                        "📊",
+                        vol_type
                     ),
                     unsafe_allow_html=True
                 )
@@ -785,8 +795,9 @@ elif page == "📉 策略回测":
 
         if strategy_mode == "👤 手动指定策略（自定义）":
             st.markdown("""
-                <div class="custom-card">
-                    <h4 style="color: #4a90e2; margin-bottom: 1rem;">📝 自定义策略配置</h4>
+                <div class="custom-card" style="padding: 1.5rem;">
+                    <h4 style="color: #1A1A1A; margin-bottom: 0.5rem; font-weight: 700;">📝 自定义策略配置</h4>
+                    <div style="width: 40px; height: 3px; background-color: #D97757; border-radius: 2px;"></div>
                 </div>
             """, unsafe_allow_html=True)
 
@@ -916,19 +927,20 @@ elif page == "📉 策略回测":
                     get_metric_card_html(
                         "策略名称",
                         result['current_strategy'],
-                        icon="🎯"
+                        None,
+                        "🎯"
                     ),
                     unsafe_allow_html=True
                 )
 
             with col2:
-                iteration_badge = get_status_badge(f"{result['iteration']}轮", "info")
                 st.markdown(
                     get_metric_card_html(
                         "优化迭代",
-                        f"{result['iteration']}",
-                        iteration_badge,
-                        "🔄"
+                        f"{result['iteration']}轮",
+                        f"共{result['iteration']}次迭代",
+                        "🔄",
+                        "info"
                     ),
                     unsafe_allow_html=True
                 )
@@ -936,29 +948,53 @@ elif page == "📉 策略回测":
             with col3:
                 is_user_specified = user_strategy is not None
                 mode_text = "用户指定" if is_user_specified else "LLM选择"
-                mode_badge = get_status_badge(f"👤 {mode_text}" if is_user_specified else f"🤖 {mode_text}",
-                                             "warning" if is_user_specified else "success")
+                mode_icon = "👤" if is_user_specified else "🤖"
                 st.markdown(
                     get_metric_card_html(
                         "选择模式",
                         mode_text,
-                        mode_badge,
-                        "⚙️"
+                        f"{mode_icon} {mode_text}",
+                        "⚙️",
+                        "warning" if is_user_specified else "success"
                     ),
                     unsafe_allow_html=True
                 )
 
+            # 参数名中文映射
+            param_names_cn = {
+                'rsi_period': 'RSI周期',
+                'oversold_threshold': '超卖阈值',
+                'overbought_threshold': '超买阈值',
+                'fast_period': '快线周期',
+                'slow_period': '慢线周期',
+                'signal_period': '信号周期',
+                'bb_period': '布林周期',
+                'bb_std': '标准差'
+            }
+
             with col4:
-                params_str = str(result['current_params'])
+                params = result['current_params']
+                param_count = len(params) if isinstance(params, dict) else 1
+
                 st.markdown(
                     get_metric_card_html(
                         "参数配置",
-                        "查看详情 →",
-                        f"<code style='font-size: 0.75rem; color: #64b5f6;'>{params_str[:30]}...</code>",
-                        "📝"
+                        f"共 {param_count} 个参数",
+                        "点击下方查看详情",
+                        "📝",
+                        "info"
                     ),
                     unsafe_allow_html=True
                 )
+
+            # 在四列卡片下方显示参数详情
+            if isinstance(result['current_params'], dict):
+                with st.expander("📋 查看完整参数配置"):
+                    param_cols = st.columns(len(result['current_params']))
+                    for i, (k, v) in enumerate(result['current_params'].items()):
+                        cn_name = param_names_cn.get(k, k)
+                        with param_cols[i]:
+                            st.metric(cn_name, v)
 
             # 回测指标
             if result.get('backtest_result') and 'metrics' in result['backtest_result']:
@@ -972,17 +1008,15 @@ elif page == "📉 策略回测":
                 # 总收益率
                 with col1:
                     return_pct = metrics['total_return_pct']
-                    return_status = "success" if return_pct > 0 else "error"
-                    return_badge = get_status_badge(
-                        f"{'📈 盈利' if return_pct > 0 else '📉 亏损'}",
-                        return_status
-                    )
+                    return_status = "📈 盈利" if return_pct > 0 else "📉 亏损"
+                    return_type = "success" if return_pct > 0 else "error"
                     st.markdown(
                         get_metric_card_html(
                             "总收益率",
                             f"{return_pct:.2f}%",
-                            return_badge,
-                            "💰"
+                            return_status,
+                            "💰",
+                            return_type
                         ),
                         unsafe_allow_html=True
                     )
@@ -991,18 +1025,22 @@ elif page == "📉 策略回测":
                 with col2:
                     sharpe = metrics['sharpe_ratio']
                     if sharpe > 1:
-                        sharpe_badge = get_status_badge("优秀 ⭐", "success")
+                        sharpe_status = "优秀 ⭐"
+                        sharpe_type = "success"
                     elif sharpe > 0.5:
-                        sharpe_badge = get_status_badge("良好 👍", "info")
+                        sharpe_status = "良好 👍"
+                        sharpe_type = "info"
                     else:
-                        sharpe_badge = get_status_badge("一般 ⚠️", "warning")
+                        sharpe_status = "一般 ⚠️"
+                        sharpe_type = "warning"
 
                     st.markdown(
                         get_metric_card_html(
                             "夏普比率",
                             f"{sharpe:.2f}",
-                            sharpe_badge,
-                            "📊"
+                            sharpe_status,
+                            "📊",
+                            sharpe_type
                         ),
                         unsafe_allow_html=True
                     )
@@ -1011,18 +1049,22 @@ elif page == "📉 策略回测":
                 with col3:
                     drawdown = metrics['max_drawdown_pct']
                     if abs(drawdown) < 5:
-                        dd_badge = get_status_badge("低风险 ✓", "success")
+                        dd_status = "低风险 ✓"
+                        dd_type = "success"
                     elif abs(drawdown) < 10:
-                        dd_badge = get_status_badge("中等 ⚠️", "warning")
+                        dd_status = "中等 ⚠️"
+                        dd_type = "warning"
                     else:
-                        dd_badge = get_status_badge("高风险 ⚠️", "error")
+                        dd_status = "高风险 ⚠️"
+                        dd_type = "error"
 
                     st.markdown(
                         get_metric_card_html(
                             "最大回撤",
                             f"{drawdown:.2f}%",
-                            dd_badge,
-                            "📉"
+                            dd_status,
+                            "📉",
+                            dd_type
                         ),
                         unsafe_allow_html=True
                     )
@@ -1031,18 +1073,22 @@ elif page == "📉 策略回测":
                 with col4:
                     win_rate = metrics['win_rate']
                     if win_rate > 60:
-                        wr_badge = get_status_badge("高胜率 🎯", "success")
+                        wr_status = "高胜率 🎯"
+                        wr_type = "success"
                     elif win_rate > 40:
-                        wr_badge = get_status_badge("中等 ✓", "info")
+                        wr_status = "中等 ✓"
+                        wr_type = "info"
                     else:
-                        wr_badge = get_status_badge("偏低 ⚠️", "warning")
+                        wr_status = "偏低 ⚠️"
+                        wr_type = "warning"
 
                     st.markdown(
                         get_metric_card_html(
                             "胜率",
                             f"{win_rate:.2f}%",
-                            wr_badge,
-                            "🎯"
+                            wr_status,
+                            "🎯",
+                            wr_type
                         ),
                         unsafe_allow_html=True
                     )

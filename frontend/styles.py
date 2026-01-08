@@ -1,416 +1,203 @@
 """
 Streamlit 自定义样式配置
-提供现代化、科技感的UI样式
+提供温暖、简洁、Claude 风格的浅色 UI 样式
 """
 
 def get_custom_css():
-    """返回自定义CSS样式"""
+    """返回自定义CSS样式 - Claude 浅色温润风格"""
     return """
     <style>
     /* ========== 全局样式 ========== */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-    /* 主体背景渐变 */
+    /* 主体背景 - 温暖的米白 */
     .stApp {
-        background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
-        font-family: 'Inter', sans-serif;
+        background-color: #FBF9F4;
+        color: #343433;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
-    /* 侧边栏样式 */
+    /* 侧边栏样式 - 浅米色 */
     [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
-        border-right: 2px solid rgba(74, 144, 226, 0.3);
+        background-color: #F1EDE4;
+        border-right: 1px solid rgba(0, 0, 0, 0.05);
     }
 
-    [data-testid="stSidebar"] .element-container {
-        color: #e0e0e0;
+    [data-testid="stSidebar"] section {
+        background-color: transparent !important;
     }
 
     /* ========== 标题样式 ========== */
     h1 {
-        color: #ffffff !important;
+        color: #1A1A1A !important;
         font-weight: 700 !important;
-        text-shadow: 0 0 20px rgba(74, 144, 226, 0.5);
-        letter-spacing: -0.5px;
-        margin-bottom: 2rem !important;
+        letter-spacing: -0.025em;
+        margin-bottom: 1.5rem !important;
     }
 
     h2 {
-        color: #4a90e2 !important;
+        color: #343433 !important;
         font-weight: 600 !important;
         margin-top: 2rem !important;
-        margin-bottom: 1rem !important;
+        border-bottom: 2px solid #D97757;
+        padding-bottom: 0.5rem;
+        display: inline-block;
     }
 
     h3 {
-        color: #64b5f6 !important;
+        color: #4A4A48 !important;
         font-weight: 600 !important;
     }
 
-    /* ========== 卡片样式 ========== */
+    /* ========== 卡片与指标样式 ========== */
     .stMetric {
-        background: linear-gradient(135deg, rgba(26, 26, 46, 0.9) 0%, rgba(22, 33, 62, 0.9) 100%);
+        background-color: #FFFFFF !important;
         padding: 1.5rem !important;
-        border-radius: 15px !important;
-        border: 1px solid rgba(74, 144, 226, 0.2);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-        backdrop-filter: blur(10px);
-        transition: all 0.3s ease;
+        border-radius: 16px !important;
+        border: 1px solid rgba(0, 0, 0, 0.04);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02), 0 4px 12px rgba(0, 0, 0, 0.03);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     .stMetric:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 12px 40px rgba(74, 144, 226, 0.3);
-        border-color: rgba(74, 144, 226, 0.5);
+        transform: translateY(-4px);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.06);
+        border-color: rgba(217, 119, 87, 0.2);
     }
 
     .stMetric label {
-        color: #9ca3af !important;
-        font-size: 0.875rem !important;
+        color: #6B6B68 !important;
+        font-size: 0.9rem !important;
         font-weight: 500 !important;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
+        text-transform: none !important;
     }
 
     .stMetric [data-testid="stMetricValue"] {
-        color: #ffffff !important;
-        font-size: 1.875rem !important;
+        color: #1A1A1A !important;
+        font-size: 1.75rem !important;
         font-weight: 700 !important;
     }
 
-    .stMetric [data-testid="stMetricDelta"] {
-        font-weight: 600 !important;
-    }
-
-    /* ========== 按钮样式 ========== */
+    /* ========== 按钮样式 - Claude 橙色系 ========== */
     .stButton button {
-        background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%) !important;
+        background-color: #D97757 !important;
         color: white !important;
         border: none !important;
-        border-radius: 10px !important;
-        padding: 0.75rem 2rem !important;
+        border-radius: 12px !important;
+        padding: 0.6rem 1.5rem !important;
         font-weight: 600 !important;
-        font-size: 1rem !important;
-        box-shadow: 0 4px 15px rgba(74, 144, 226, 0.4) !important;
-        transition: all 0.3s ease !important;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
+        transition: all 0.2s !important;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
     }
 
     .stButton button:hover {
-        background: linear-gradient(135deg, #357abd 0%, #2868a8 100%) !important;
-        box-shadow: 0 6px 20px rgba(74, 144, 226, 0.6) !important;
-        transform: translateY(-2px);
-    }
-
-    .stButton button:active {
-        transform: translateY(0);
+        background-color: #C15F3C !important;
+        box-shadow: 0 4px 12px rgba(193, 95, 60, 0.3) !important;
+        transform: scale(1.02);
     }
 
     /* ========== 输入框样式 ========== */
-    .stSelectbox, .stTextInput {
-        background: rgba(26, 26, 46, 0.6) !important;
+    .stSelectbox div[data-baseweb="select"],
+    .stTextInput input {
+        background-color: #FFFFFF !important;
+        color: #343433 !important;
+        border: 1px solid rgba(0, 0, 0, 0.1) !important;
         border-radius: 10px !important;
-    }
-
-    .stSelectbox > div > div,
-    .stTextInput > div > div > input {
-        background: rgba(26, 26, 46, 0.8) !important;
-        color: #ffffff !important;
-        border: 1px solid rgba(74, 144, 226, 0.3) !important;
-        border-radius: 8px !important;
-        padding: 0.75rem !important;
-        font-size: 1rem !important;
-        transition: all 0.3s ease;
-    }
-
-    .stSelectbox > div > div:hover,
-    .stTextInput > div > div > input:hover {
-        border-color: rgba(74, 144, 226, 0.6) !important;
-    }
-
-    .stSelectbox > div > div:focus,
-    .stTextInput > div > div > input:focus {
-        border-color: #4a90e2 !important;
-        box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.2) !important;
     }
 
     /* ========== 数据表格样式 ========== */
     .stDataFrame {
-        background: rgba(26, 26, 46, 0.6) !important;
-        border-radius: 10px !important;
+        border-radius: 12px !important;
         overflow: hidden;
-    }
-
-    .stDataFrame table {
-        color: #e0e0e0 !important;
-    }
-
-    .stDataFrame th {
-        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%) !important;
-        color: #4a90e2 !important;
-        font-weight: 600 !important;
-        padding: 1rem !important;
-        text-transform: uppercase;
-        font-size: 0.875rem;
-        letter-spacing: 0.5px;
-    }
-
-    .stDataFrame td {
-        padding: 0.875rem !important;
-        border-bottom: 1px solid rgba(74, 144, 226, 0.1) !important;
-    }
-
-    .stDataFrame tbody tr:hover {
-        background: rgba(74, 144, 226, 0.1) !important;
     }
 
     /* ========== 信息框样式 ========== */
     .stAlert {
-        background: rgba(26, 26, 46, 0.9) !important;
-        border-radius: 10px !important;
-        border-left: 4px solid !important;
-        padding: 1rem 1.5rem !important;
-        backdrop-filter: blur(10px);
-    }
-
-    .stSuccess {
-        border-left-color: #10b981 !important;
-        background: linear-gradient(90deg, rgba(16, 185, 129, 0.1) 0%, rgba(26, 26, 46, 0.9) 100%) !important;
-    }
-
-    .stError {
-        border-left-color: #ef4444 !important;
-        background: linear-gradient(90deg, rgba(239, 68, 68, 0.1) 0%, rgba(26, 26, 46, 0.9) 100%) !important;
-    }
-
-    .stInfo {
-        border-left-color: #3b82f6 !important;
-        background: linear-gradient(90deg, rgba(59, 130, 246, 0.1) 0%, rgba(26, 26, 46, 0.9) 100%) !important;
-    }
-
-    .stWarning {
-        border-left-color: #f59e0b !important;
-        background: linear-gradient(90deg, rgba(245, 158, 11, 0.1) 0%, rgba(26, 26, 46, 0.9) 100%) !important;
-    }
-
-    /* ========== 分隔线样式 ========== */
-    hr {
+        border-radius: 12px !important;
         border: none !important;
-        height: 1px !important;
-        background: linear-gradient(90deg, transparent 0%, rgba(74, 144, 226, 0.3) 50%, transparent 100%) !important;
-        margin: 2rem 0 !important;
-    }
-
-    /* ========== 展开器样式 ========== */
-    .streamlit-expanderHeader {
-        background: linear-gradient(135deg, rgba(26, 26, 46, 0.8) 0%, rgba(22, 33, 62, 0.8) 100%) !important;
-        border: 1px solid rgba(74, 144, 226, 0.2) !important;
-        border-radius: 10px !important;
-        color: #ffffff !important;
-        font-weight: 600 !important;
-        padding: 1rem !important;
-        transition: all 0.3s ease;
-    }
-
-    .streamlit-expanderHeader:hover {
-        background: linear-gradient(135deg, rgba(26, 26, 46, 0.9) 0%, rgba(22, 33, 62, 0.9) 100%) !important;
-        border-color: rgba(74, 144, 226, 0.4) !important;
-    }
-
-    .streamlit-expanderContent {
-        background: rgba(26, 26, 46, 0.5) !important;
-        border: 1px solid rgba(74, 144, 226, 0.2) !important;
-        border-top: none !important;
-        border-radius: 0 0 10px 10px !important;
-        padding: 1.5rem !important;
-    }
-
-    /* ========== 图表样式 ========== */
-    .stPlotlyChart {
-        background: rgba(26, 26, 46, 0.6) !important;
-        border-radius: 15px !important;
-        padding: 1rem !important;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-    }
-
-    /* ========== 标签页样式 ========== */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 0.5rem;
-        background: rgba(26, 26, 46, 0.6);
-        padding: 0.5rem;
-        border-radius: 10px;
-    }
-
-    .stTabs [data-baseweb="tab"] {
-        background: transparent;
-        color: #9ca3af;
-        border-radius: 8px;
-        padding: 0.75rem 1.5rem;
-        font-weight: 600;
-        transition: all 0.3s ease;
-    }
-
-    .stTabs [data-baseweb="tab"]:hover {
-        background: rgba(74, 144, 226, 0.1);
-        color: #4a90e2;
-    }
-
-    .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%) !important;
-        color: white !important;
-    }
-
-    /* ========== 进度条样式 ========== */
-    .stProgress > div > div {
-        background: linear-gradient(90deg, #4a90e2 0%, #357abd 100%) !important;
-        border-radius: 10px;
-    }
-
-    /* ========== 加载动画 ========== */
-    .stSpinner > div {
-        border-color: #4a90e2 transparent transparent transparent !important;
-    }
-
-    /* ========== 滚动条样式 ========== */
-    ::-webkit-scrollbar {
-        width: 10px;
-        height: 10px;
-    }
-
-    ::-webkit-scrollbar-track {
-        background: rgba(26, 26, 46, 0.5);
-        border-radius: 10px;
-    }
-
-    ::-webkit-scrollbar-thumb {
-        background: linear-gradient(180deg, #4a90e2 0%, #357abd 100%);
-        border-radius: 10px;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-        background: linear-gradient(180deg, #357abd 0%, #2868a8 100%);
+        background-color: #FFFFFF !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
     }
 
     /* ========== 自定义卡片类 ========== */
     .custom-card {
-        background: linear-gradient(135deg, rgba(26, 26, 46, 0.95) 0%, rgba(22, 33, 62, 0.95) 100%);
+        background-color: #FFFFFF;
         padding: 2rem;
-        border-radius: 15px;
-        border: 1px solid rgba(74, 144, 226, 0.2);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-        margin: 1rem 0;
+        border-radius: 16px;
+        border: 1px solid rgba(0, 0, 0, 0.04);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.02);
+        margin: 1.5rem 0;
     }
 
-    .glow-text {
-        text-shadow: 0 0 10px rgba(74, 144, 226, 0.5),
-                     0 0 20px rgba(74, 144, 226, 0.3),
-                     0 0 30px rgba(74, 144, 226, 0.2);
-    }
+    /* ========== 滚动条优化 ========== */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: #FBF9F4; }
+    ::-webkit-scrollbar-thumb { background: #E5E1D6; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #D1CDC1; }
 
-    /* ========== 动画 ========== */
-    @keyframes fadeIn {
-        from {
-            opacity: 0;
-            transform: translateY(20px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-
-    .fade-in {
-        animation: fadeIn 0.5s ease-out;
-    }
-
-    @keyframes pulse {
-        0%, 100% {
-            opacity: 1;
-        }
-        50% {
-            opacity: 0.7;
-        }
-    }
-
-    .pulse {
-        animation: pulse 2s ease-in-out infinite;
-    }
-
-    /* ========== 响应式设计 ========== */
-    @media (max-width: 768px) {
-        .stMetric {
-            padding: 1rem !important;
-        }
-
-        h1 {
-            font-size: 1.75rem !important;
-        }
-
-        .stButton button {
-            padding: 0.625rem 1.5rem !important;
-            font-size: 0.875rem !important;
-        }
+    /* 隐藏默认装饰 */
+    div[data-testid="stDecoration"] {
+        display: none;
     }
     </style>
     """
 
-
 def get_header_html(title, subtitle=""):
-    """返回美化的页面标题HTML"""
+    """返回 Claude 风格的温润页面标题"""
     return f"""
-    <div class="fade-in" style="text-align: center; padding: 2rem 0;">
-        <h1 class="glow-text" style="font-size: 3rem; margin-bottom: 0.5rem;">
-            {title}
-        </h1>
-        {f'<p style="color: #9ca3af; font-size: 1.25rem; margin-top: 0;">{subtitle}</p>' if subtitle else ''}
+    <div style="padding: 2.5rem 0; text-align: left; margin-bottom: 2rem;">
+        <h1 style="margin: 0; color: #1A1A1A; font-size: 2.75rem; font-weight: 800;">{title}</h1>
+        {f'<p style="color: #6B6B68; font-size: 1.2rem; margin-top: 1rem; max-width: 800px; line-height: 1.5;">{subtitle}</p>' if subtitle else ''}
+        <div style="width: 60px; height: 4px; background-color: #D97757; margin-top: 2rem; border-radius: 2px;"></div>
     </div>
     """
 
+def get_metric_card_html(label, value, delta=None, icon="📊", delta_type=None):
+    """
+    Claude 风格对比指标卡片
 
-def get_metric_card_html(label, value, delta=None, icon="📊"):
-    """返回美化的指标卡片HTML"""
+    Args:
+        label: 标签名称
+        value: 主要数值
+        delta: 变化值/状态文本（纯文本，不要传入HTML）
+        icon: 图标
+        delta_type: 状态类型 ("success", "error", "warning", "info", None为自动判断)
+    """
     delta_html = ""
     if delta:
-        delta_color = "#10b981" if "+" in str(delta) or "↑" in str(delta) else "#ef4444"
-        delta_html = f'<div style="color: {delta_color}; font-size: 1rem; font-weight: 600; margin-top: 0.5rem;">{delta}</div>'
+        delta_str = str(delta).strip()
 
-    return f"""
-    <div class="custom-card fade-in" style="text-align: center;">
-        <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">{icon}</div>
-        <div style="color: #9ca3af; font-size: 0.875rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.5rem;">
-            {label}
-        </div>
-        <div style="color: #ffffff; font-size: 2rem; font-weight: 700; margin-bottom: 0.25rem;">
-            {value}
-        </div>
-        {delta_html}
-    </div>
-    """
+        # 确定颜色
+        if delta_type:
+            colors = {
+                "success": ("#15803d", "#f0fdf4"),
+                "error": ("#b91c1c", "#fef2f2"),
+                "warning": ("#b45309", "#fffbeb"),
+                "info": ("#1d4ed8", "#eff6ff")
+            }
+            delta_color, delta_bg = colors.get(delta_type, colors["info"])
+        else:
+            # 自动判断
+            is_positive = "+" in delta_str or "↑" in delta_str or "盈" in delta_str or "金叉" in delta_str
+            is_negative = "-" in delta_str or "↓" in delta_str or "亏" in delta_str or "死叉" in delta_str
+            if is_positive:
+                delta_color, delta_bg = "#15803d", "#f0fdf4"
+            elif is_negative:
+                delta_color, delta_bg = "#b91c1c", "#fef2f2"
+            else:
+                delta_color, delta_bg = "#1d4ed8", "#eff6ff"
 
+        delta_html = f'<div style="margin-top: 10px;"><span style="color: {delta_color}; background: {delta_bg}; padding: 4px 10px; border-radius: 20px; font-size: 0.85rem; font-weight: 600;">{delta_str}</span></div>'
+
+    return f'<div class="custom-card"><div style="color: #6B6B68; font-size: 1rem; font-weight: 500; display: flex; align-items: center; gap: 10px; margin-bottom: 15px;"><span style="font-size: 1.5rem;">{icon}</span> {label}</div><div style="color: #1A1A1A; font-size: 2rem; font-weight: 700;">{value}</div>{delta_html}</div>'
 
 def get_status_badge(text, status="info"):
-    """返回状态徽章HTML"""
+    """圆润的状态标签 - 返回紧凑的HTML"""
     colors = {
-        "success": "#10b981",
-        "error": "#ef4444",
-        "warning": "#f59e0b",
-        "info": "#3b82f6"
+        "success": ("#15803d", "#f0fdf4"),
+        "error": ("#b91c1c", "#fef2f2"),
+        "warning": ("#b45309", "#fffbeb"),
+        "info": ("#1d4ed8", "#eff6ff")
     }
-
-    color = colors.get(status, colors["info"])
-
-    return f"""
-    <span style="
-        background: linear-gradient(135deg, {color}22 0%, {color}11 100%);
-        color: {color};
-        padding: 0.5rem 1rem;
-        border-radius: 20px;
-        border: 1px solid {color}44;
-        font-weight: 600;
-        font-size: 0.875rem;
-        display: inline-block;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    ">{text}</span>
-    """
+    color, bg = colors.get(status, colors["info"])
+    return f'<span style="color: {color}; background-color: {bg}; padding: 6px 14px; border-radius: 100px; border: 1px solid {color}22; font-weight: 600; font-size: 0.85rem; display: inline-block;">{text}</span>'
