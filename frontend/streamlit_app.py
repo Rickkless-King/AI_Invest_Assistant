@@ -664,73 +664,494 @@ elif page == "📈 历史数据":
     with col3:
         st.metric("分析记录", f"{stats.get('total_analysis', 0):,}")
 
-# ==================== 页面4: 交易记录 ====================
+# ==================== 页面4: 策略竞技场 ====================
 elif page == "💰 交易记录":
-    st.title("💰 交易记录管理")
+    st.title("🏆 策略竞技场 - 模拟盘实时对决")
 
-    # 手动添加交易
-    st.subheader("添加交易记录")
+    st.info("""
+    **策略竞技场 v2.0** - 比较Agent优化策略 vs 固定参数策略的实际表现
 
-    col1, col2, col3 = st.columns(3)
+    - 🎯 **5种策略同时运行**: RSI / MACD / 布林带 / 波动收割 / 趋势突破
+    - 💰 **资金分配**: 每种策略分配账户10%的资金（共50%）
+    - 🤖 **Agent控制**: 前3种策略由AI Agent动态优化参数
+    - 🔒 **固定参数**: 波动收割和趋势突破策略使用经过2017-2026年回测验证的固定参数
+    - ⏱️ **时间周期**: BTC-USDT 4H
+    - 📅 **统一起始**: 所有策略从 2026-01-01 开始计算表现
+    - 🔄 **离线同步**: 关闭后再打开会自动同步新数据并模拟策略交易
+    """)
 
-    with col1:
-        trade_symbol = st.selectbox("交易对", ["BTC-USDT", "ETH-USDT", "SOL-USDT"])
-        trade_side = st.selectbox("方向", ["BUY", "SELL"])
+    # 初始化竞技场和持久化服务
+    try:
+        from backend.trading.strategy_arena import get_arena, StrategyType
+        from backend.trading.arena_persistence import get_persistence
 
-    with col2:
-        trade_price = st.number_input("价格", min_value=0.0, value=42000.0)
-        trade_quantity = st.number_input("数量", min_value=0.0, value=0.01, format="%.4f")
+        arena = get_arena()
+        persistence = get_persistence()
 
-    with col3:
-        trade_fee = st.number_input("手续费", min_value=0.0, value=0.42)
-        trade_strategy = st.text_input("策略名称", value="manual")
+        # 检查是否需要自动同步和回顾
+        if 'arena_synced' not in st.session_state:
+            st.session_state['arena_synced'] = False
+            st.session_state['sync_result'] = None
 
-    if st.button("💾 保存交易"):
-        trade_data = {
-            'symbol': trade_symbol,
-            'side': trade_side,
-            'price': trade_price,
-            'quantity': trade_quantity,
-            'fee': trade_fee,
-            'strategy': trade_strategy,
-            'timestamp': datetime.now().isoformat()
-        }
-        db.save_trade(trade_data)
-        st.success("✅ 交易记录已保存")
-        st.rerun()
+        # 首次加载时自动同步（仅当已有资金分配时）
+        if not st.session_state['arena_synced']:
+            # 尝试加载之前的状态
+            loaded, last_active = persistence.load_arena_state(arena)
 
-    # 显示交易记录
-    st.markdown("---")
-    st.subheader("交易历史")
+            # 检查是否已有资金分配
+            has_capital = any(s.initial_capital > 0 for s in arena.strategies.values())
 
-    trades_df = db.get_trades(limit=100)
+            if has_capital and loaded:
+                # 已有资金，执行离线同步
+                with st.spinner("🔄 正在同步离线期间的数据..."):
+                    sync_result = persistence.sync_and_review(arena, auto_optimize=True)
+                    st.session_state['sync_result'] = sync_result
+                    st.session_state['arena_synced'] = True
 
-    if not trades_df.empty:
-        # 计算总盈亏（简化）
-        total_buy = trades_df[trades_df['side'] == 'BUY']['amount'].sum()
-        total_sell = trades_df[trades_df['side'] == 'SELL']['amount'].sum()
-        total_fee = trades_df['fee'].sum()
+                    if sync_result.get('offline_hours', 0) > 1:
+                        st.success(f"✅ 已同步 {sync_result['offline_hours']:.1f} 小时的离线数据")
 
-        col1, col2, col3, col4 = st.columns(4)
+                        if sync_result.get('strategy_performance'):
+                            st.markdown("##### 📊 离线期间策略表现回顾")
+                            for strategy, perf in sync_result['strategy_performance'].items():
+                                mode = "🔒固定" if not perf['is_agent_controlled'] else "🤖Agent"
+                                return_color = "green" if perf['simulated_return_pct'] >= 0 else "red"
+                                trades = perf.get('trades_executed', 0)
+                                st.markdown(f"- **{perf['name']}** ({mode}): "
+                                           f"<span style='color:{return_color}'>"
+                                           f"{perf['simulated_return_pct']:+.2f}%</span> "
+                                           f"(新增交易:{trades})",
+                                           unsafe_allow_html=True)
 
-        with col1:
-            st.metric("总买入", f"${total_buy:,.2f}")
+                        # 显示参数优化
+                        if sync_result.get('optimizations'):
+                            st.markdown("##### ⚙️ Agent参数自动优化")
+                            for opt in sync_result['optimizations']:
+                                st.info(f"**{opt['strategy']}**: {opt['reason']}")
+                                st.caption(f"参数变更: {opt['old_params']} → {opt['new_params']}")
+                    else:
+                        st.info("📝 数据已是最新")
+            else:
+                # 首次运行，提示用户点击启动按钮
+                st.session_state['arena_synced'] = True
+                if not has_capital:
+                    st.info("👋 首次运行，请点击下方「🚀 启动竞技场」按钮开始！系统将自动回测2026-01-01至今的所有策略表现。")
 
-        with col2:
-            st.metric("总卖出", f"${total_sell:,.2f}")
+        # Tab布局
+        arena_tab1, arena_tab2, arena_tab3, arena_tab4, arena_tab5 = st.tabs([
+            "🚀 启动竞技", "📊 实时表现", "📈 策略对比", "📝 交易历史", "🔧 参数优化历史"
+        ])
 
-        with col3:
-            st.metric("总手续费", f"${total_fee:,.2f}")
+        # ==================== Tab 1: 启动竞技 ====================
+        with arena_tab1:
+            st.subheader("⚙️ 竞技场配置")
 
-        with col4:
-            pnl = total_sell - total_buy - total_fee
-            st.metric("盈亏", f"${pnl:,.2f}", delta=f"{(pnl/total_buy*100):.2f}%" if total_buy > 0 else "0%")
+            # 获取账户余额
+            balance_data = fetcher.get_account_balance()
 
-        # 显示交易表格
-        st.dataframe(trades_df[['symbol', 'side', 'price', 'quantity', 'amount', 'timestamp']])
+            col1, col2 = st.columns(2)
 
-    else:
-        st.info("📭 暂无交易记录")
+            with col1:
+                st.markdown("##### 📍 交易设置")
+                st.info(f"**交易对**: BTC-USDT | **时间周期**: 4H | **起始日期**: 2026-01-01")
+
+                # 解析账户余额（balance_data是字典格式）
+                usdt_balance = 10000  # 默认模拟资金
+
+                if balance_data and isinstance(balance_data, dict):
+                    if 'error' not in balance_data and 'balances' in balance_data:
+                        # 成功获取真实余额
+                        usdt_balance = balance_data.get('balances', {}).get('USDT', 0)
+                        st.metric("可用USDT余额", f"${usdt_balance:,.2f}")
+                        st.caption(f"总权益: ${balance_data.get('total_equity', 0):,.2f}")
+                    else:
+                        # API返回错误或无API Key
+                        error_msg = balance_data.get('error', '未知错误')
+                        st.warning(f"⚠️ {error_msg}")
+                        st.info(f"使用模拟资金: ${usdt_balance:,.2f}")
+                else:
+                    st.warning("⚠️ 无法获取账户余额")
+                    st.info(f"使用模拟资金: ${usdt_balance:,.2f}")
+
+                # 资金分配预览
+                per_strategy = usdt_balance * 0.1
+                st.markdown(f"""
+                **资金分配预览** (每策略10%):
+                - RSI策略: ${per_strategy:,.2f}
+                - MACD策略: ${per_strategy:,.2f}
+                - 布林带策略: ${per_strategy:,.2f}
+                - 波动收割策略: ${per_strategy:,.2f}
+                - 趋势突破策略: ${per_strategy:,.2f}
+                - **总投入**: ${per_strategy * 5:,.2f} (50%)
+                """)
+
+            with col2:
+                st.markdown("##### 🎯 策略配置")
+
+                # 显示5种策略的配置
+                strategies_info = [
+                    ("RSI", "Agent优化", "rsi_period=14, oversold=30, overbought=70"),
+                    ("MACD", "Agent优化", "fast=12, slow=26, signal=9"),
+                    ("布林带", "Agent优化", "period=20, std=2.0"),
+                    ("波动收割", "固定参数", "ATR(20/185), 止盈1.3%, 止损3%"),
+                    ("趋势突破", "固定参数", "LinReg(102), 止盈1.6%, 止损1.8%"),
+                ]
+
+                for name, mode, params in strategies_info:
+                    mode_color = "🤖" if mode == "Agent优化" else "🔒"
+                    st.markdown(f"**{mode_color} {name}** ({mode})")
+                    st.caption(f"   参数: {params}")
+
+            st.markdown("---")
+
+            # 启动/停止按钮
+            col1, col2, col3 = st.columns([1, 1, 1])
+
+            with col1:
+                if st.button("🚀 启动竞技场", type="primary", use_container_width=True):
+                    with st.spinner("🔄 正在分配资金并回测历史数据..."):
+                        # 1. 分配资金（必须在回测之前）
+                        arena.allocate_capital(usdt_balance, force=True)
+
+                        # 2. 执行从2026-01-01开始的完整回测
+                        sync_result = persistence.sync_and_review(
+                            arena, auto_optimize=True, force_full_backtest=True
+                        )
+
+                        # 3. 启动实时监控
+                        arena.start_monitoring()
+
+                        # 4. 保存状态
+                        persistence.save_arena_state(arena)
+
+                        # 显示回测结果
+                        if sync_result.get('strategy_performance'):
+                            st.success("✅ 竞技场已启动！")
+                            st.markdown("##### 📊 2026-01-01至今回测结果：")
+                            for strategy, perf in sync_result['strategy_performance'].items():
+                                trades = perf.get('trades_executed', 0)
+                                ret = perf.get('simulated_return_pct', 0)
+                                color = "green" if ret >= 0 else "red"
+                                st.markdown(f"- **{perf['name']}**: "
+                                           f"<span style='color:{color}'>{ret:+.2f}%</span> "
+                                           f"({trades}笔交易)", unsafe_allow_html=True)
+                        else:
+                            st.success("✅ 竞技场已启动！策略开始实时运行...")
+
+                    st.rerun()
+
+            with col2:
+                if st.button("⏹️ 停止竞技场", use_container_width=True):
+                    arena.stop_monitoring()
+                    # 保存状态（下次打开时可恢复）
+                    persistence.save_arena_state(arena)
+                    st.warning("⏹️ 竞技场已停止（状态已保存，下次打开可恢复）")
+                    st.rerun()
+
+            with col3:
+                if st.button("🔄 重置竞技场", use_container_width=True):
+                    from backend.trading.strategy_arena import reset_arena
+                    reset_arena()
+                    # 清除数据库中的状态
+                    persistence.clear_arena_state()
+                    st.session_state['arena_synced'] = False
+                    st.info("🔄 竞技场已重置（所有数据已清除）")
+                    st.rerun()
+
+            # 自动保存状态（每次页面加载时）
+            if arena.strategies and any(s.initial_capital > 0 for s in arena.strategies.values()):
+                persistence.save_arena_state(arena)
+
+            # 当前状态
+            st.markdown("---")
+            status = arena.get_arena_status()
+
+            if status["is_running"]:
+                st.success(f"🟢 竞技场运行中 | 当前BTC价格: ${status['current_price']:,.2f}")
+            else:
+                st.info("🔴 竞技场未运行（关闭页面后，下次打开会自动同步数据并回顾表现）")
+
+        # ==================== Tab 2: 实时表现 ====================
+        with arena_tab2:
+            st.subheader("📊 策略实时表现")
+
+            # 刷新按钮
+            if st.button("🔄 刷新数据"):
+                st.rerun()
+
+            status = arena.get_arena_status()
+
+            if not status["strategies"]:
+                st.info("请先启动竞技场")
+            else:
+                # 5种策略分两行显示：第一行3个(Agent优化)，第二行2个(固定参数)
+                st.markdown("##### 🤖 Agent优化策略")
+                cols_row1 = st.columns(3)
+                strategy_order_row1 = ["RSI", "MACD", "BollingerBands"]
+
+                for i, strategy_name in enumerate(strategy_order_row1):
+                    if strategy_name in status["strategies"]:
+                        s = status["strategies"][strategy_name]
+                        with cols_row1[i]:
+                            # 策略卡片
+                            mode_icon = "🤖"
+                            st.markdown(f"""
+                            <div style="border: 2px solid {'#10B981' if s['return_pct'] >= 0 else '#EF4444'};
+                                        border-radius: 10px; padding: 15px; margin-bottom: 10px;
+                                        background: {'#ECFDF5' if s['return_pct'] >= 0 else '#FEF2F2'};">
+                                <h4 style="margin: 0; color: #1F2937;">{mode_icon} {s['name'][:8]}</h4>
+                                <p style="font-size: 24px; font-weight: bold; margin: 10px 0;
+                                          color: {'#10B981' if s['return_pct'] >= 0 else '#EF4444'};">
+                                    {s['return_pct']:+.2f}%
+                                </p>
+                                <p style="margin: 5px 0; font-size: 12px; color: #6B7280;">
+                                    💰 ${s['current_value']:.2f}<br>
+                                    📈 {s['trade_count']}笔 | 胜率{s['win_rate']:.0f}%
+                                </p>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                            # 持仓状态
+                            if s["position"] > 0:
+                                st.success(f"持仓: {s['position']:.6f} BTC")
+                            else:
+                                st.info("空仓等待信号")
+
+                            # 最新信号
+                            signal_map = {1: "🟢 买入", -1: "🔴 卖出", 0: "⚪ 持有"}
+                            st.caption(f"信号: {signal_map.get(s['last_signal'], '⚪ 持有')}")
+
+                st.markdown("##### 🔒 固定参数策略")
+                cols_row2 = st.columns(2)
+                strategy_order_row2 = ["VolatilityHarvest", "TrendBreakout"]
+
+                for i, strategy_name in enumerate(strategy_order_row2):
+                    if strategy_name in status["strategies"]:
+                        s = status["strategies"][strategy_name]
+                        with cols_row2[i]:
+                            # 策略卡片
+                            mode_icon = "🔒"
+                            st.markdown(f"""
+                            <div style="border: 2px solid {'#10B981' if s['return_pct'] >= 0 else '#EF4444'};
+                                        border-radius: 10px; padding: 15px; margin-bottom: 10px;
+                                        background: {'#ECFDF5' if s['return_pct'] >= 0 else '#FEF2F2'};">
+                                <h4 style="margin: 0; color: #1F2937;">{mode_icon} {s['name'][:8]}</h4>
+                                <p style="font-size: 24px; font-weight: bold; margin: 10px 0;
+                                          color: {'#10B981' if s['return_pct'] >= 0 else '#EF4444'};">
+                                    {s['return_pct']:+.2f}%
+                                </p>
+                                <p style="margin: 5px 0; font-size: 12px; color: #6B7280;">
+                                    💰 ${s['current_value']:.2f}<br>
+                                    📈 {s['trade_count']}笔 | 胜率{s['win_rate']:.0f}%
+                                </p>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                            # 持仓状态
+                            if s["position"] > 0:
+                                st.success(f"持仓: {s['position']:.6f} BTC")
+                            else:
+                                st.info("空仓等待信号")
+
+                            # 最新信号
+                            signal_map = {1: "🟢 买入", -1: "🔴 卖出", 0: "⚪ 持有"}
+                            st.caption(f"信号: {signal_map.get(s['last_signal'], '⚪ 持有')}")
+
+                # 总体表现
+                st.markdown("---")
+                st.subheader("📈 总体表现对比")
+
+                # 收益率排名
+                sorted_strategies = sorted(
+                    status["strategies"].items(),
+                    key=lambda x: x[1]["return_pct"],
+                    reverse=True
+                )
+
+                for rank, (name, s) in enumerate(sorted_strategies, 1):
+                    mode = "固定参数" if not s["is_agent_controlled"] else "Agent优化"
+                    medal = "🥇" if rank == 1 else ("🥈" if rank == 2 else ("🥉" if rank == 3 else "  "))
+                    st.markdown(f"{medal} **#{rank} {s['name']}** ({mode}): "
+                               f"**{s['return_pct']:+.2f}%** | "
+                               f"${s['current_value']:.2f} | "
+                               f"{s['trade_count']}笔交易")
+
+        # ==================== Tab 3: 策略对比 ====================
+        with arena_tab3:
+            st.subheader("📈 Agent优化 vs 固定参数 对比分析")
+
+            status = arena.get_arena_status()
+
+            if not status["strategies"]:
+                st.info("请先启动竞技场以查看对比数据")
+            else:
+                # 计算两组平均表现
+                agent_strategies = []
+                fixed_strategies = []
+
+                for name, s in status["strategies"].items():
+                    if s["is_agent_controlled"]:
+                        agent_strategies.append(s)
+                    else:
+                        fixed_strategies.append(s)
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.markdown("### 🤖 Agent优化策略")
+                    if agent_strategies:
+                        avg_return = sum(s["return_pct"] for s in agent_strategies) / len(agent_strategies)
+                        total_trades = sum(s["trade_count"] for s in agent_strategies)
+                        avg_winrate = sum(s["win_rate"] for s in agent_strategies) / len(agent_strategies)
+
+                        st.metric("平均收益率", f"{avg_return:+.2f}%")
+                        st.metric("总交易次数", total_trades)
+                        st.metric("平均胜率", f"{avg_winrate:.1f}%")
+
+                        st.markdown("**包含策略:**")
+                        for s in agent_strategies:
+                            st.markdown(f"- {s['name']}: {s['return_pct']:+.2f}%")
+
+                with col2:
+                    st.markdown("### 🔒 固定参数策略")
+                    if fixed_strategies:
+                        s = fixed_strategies[0]  # 只有一个固定参数策略
+
+                        st.metric("收益率", f"{s['return_pct']:+.2f}%")
+                        st.metric("交易次数", s["trade_count"])
+                        st.metric("胜率", f"{s['win_rate']:.1f}%")
+
+                        st.markdown("**策略参数（固定）:**")
+                        for k, v in s.get("params", {}).items():
+                            if k in ["atr_period", "atr_trail_period", "atr_multiplier",
+                                    "stop_loss_pct", "profit_target_pct"]:
+                                st.caption(f"- {k}: {v}")
+
+                # 对比结论
+                st.markdown("---")
+                st.subheader("🏆 对比结论")
+
+                if agent_strategies and fixed_strategies:
+                    agent_avg = sum(s["return_pct"] for s in agent_strategies) / len(agent_strategies)
+                    fixed_return = fixed_strategies[0]["return_pct"]
+
+                    if agent_avg > fixed_return:
+                        winner = "Agent优化策略"
+                        diff = agent_avg - fixed_return
+                        st.success(f"🤖 **{winner}** 领先! 平均收益高出 **{diff:.2f}%**")
+                    elif fixed_return > agent_avg:
+                        winner = "固定参数策略(波动收割)"
+                        diff = fixed_return - agent_avg
+                        st.success(f"🔒 **{winner}** 领先! 收益高出 **{diff:.2f}%**")
+                    else:
+                        st.info("🤝 两种模式表现持平")
+
+                    # 详细对比表格
+                    comparison_df = arena.get_performance_comparison()
+                    st.dataframe(comparison_df, use_container_width=True)
+
+        # ==================== Tab 4: 交易历史 ====================
+        with arena_tab4:
+            st.subheader("📝 策略交易历史")
+
+            status = arena.get_arena_status()
+
+            # 按策略显示交易记录
+            for strategy_name in ["RSI", "MACD", "BollingerBands", "VolatilityHarvest"]:
+                if strategy_name in arena.strategies:
+                    state = arena.strategies[StrategyType(strategy_name)]
+                    trades = state.trades
+
+                    with st.expander(f"📊 {state.name} ({len(trades)}笔交易)", expanded=False):
+                        if trades:
+                            trades_df = pd.DataFrame(trades)
+                            st.dataframe(trades_df, use_container_width=True)
+
+                            # 统计
+                            buy_count = len([t for t in trades if t.get('type') == 'BUY'])
+                            sell_count = len([t for t in trades if t.get('type') == 'SELL'])
+                            total_profit = sum(t.get('profit', 0) for t in trades if 'profit' in t)
+
+                            st.markdown(f"买入: {buy_count}次 | 卖出: {sell_count}次 | 总盈亏: ${total_profit:.2f}")
+                        else:
+                            st.info("暂无交易记录")
+
+            # 从数据库加载所有交易
+            st.markdown("---")
+            st.subheader("📋 全部交易记录（数据库）")
+
+            trades_df = db.get_trades(limit=100)
+
+            if not trades_df.empty:
+                # 按策略筛选
+                strategy_filter = st.selectbox(
+                    "按策略筛选",
+                    ["全部"] + list(trades_df['strategy'].unique()) if 'strategy' in trades_df.columns else ["全部"]
+                )
+
+                if strategy_filter != "全部" and 'strategy' in trades_df.columns:
+                    trades_df = trades_df[trades_df['strategy'] == strategy_filter]
+
+                st.dataframe(trades_df, use_container_width=True)
+
+                # 汇总统计
+                total_buy = trades_df[trades_df['side'] == 'BUY']['amount'].sum() if 'amount' in trades_df.columns else 0
+                total_sell = trades_df[trades_df['side'] == 'SELL']['amount'].sum() if 'amount' in trades_df.columns else 0
+                total_fee = trades_df['fee'].sum() if 'fee' in trades_df.columns else 0
+
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("总买入", f"${total_buy:,.2f}")
+                with col2:
+                    st.metric("总卖出", f"${total_sell:,.2f}")
+                with col3:
+                    st.metric("总手续费", f"${total_fee:,.2f}")
+                with col4:
+                    pnl = total_sell - total_buy - total_fee
+                    st.metric("盈亏", f"${pnl:,.2f}")
+            else:
+                st.info("📭 暂无交易记录")
+
+        # ==================== Tab 5: 参数优化历史 ====================
+        with arena_tab5:
+            st.subheader("🔧 Agent参数优化历史")
+
+            st.markdown("""
+            **说明**: 此页面显示Agent对前3种策略（RSI/MACD/布林带）的参数优化历史。
+            波动收割策略使用固定参数，不会被优化。
+            """)
+
+            # 获取优化历史
+            opt_history = persistence.get_optimization_history(limit=50)
+
+            if not opt_history.empty:
+                st.success(f"共有 {len(opt_history)} 条优化记录")
+
+                # 显示优化历史表格
+                display_df = opt_history.copy()
+                display_df.columns = ['策略', '原参数', '新参数', '优化原因', '优化前表现', '优化时间']
+
+                st.dataframe(display_df, use_container_width=True)
+
+                # 分策略统计
+                st.markdown("---")
+                st.markdown("##### 📊 分策略优化统计")
+
+                for strategy in opt_history['strategy_type'].unique():
+                    strategy_opts = opt_history[opt_history['strategy_type'] == strategy]
+                    st.markdown(f"- **{strategy}**: {len(strategy_opts)} 次优化")
+            else:
+                st.info("📭 暂无参数优化记录")
+                st.markdown("""
+                **提示**: 当满足以下条件时，Agent会自动优化参数：
+                - 离线超过1小时后重新打开页面
+                - 策略表现不佳（收益 < -2%）
+                - 策略表现优异（收益 > 5%）时微调
+                """)
+
+    except Exception as e:
+        st.error(f"❌ 策略竞技场加载失败: {str(e)}")
+        st.exception(e)
 
 # ==================== 页面5: AI策略优化 ====================
 elif page == "📉 策略回测":
@@ -806,8 +1227,9 @@ elif page == "📉 策略回测":
             with col1:
                 manual_strategy = st.selectbox(
                     "📊 选择策略",
-                    ["RSI", "MACD", "BollingerBands"],
-                    key="manual_strategy"
+                    ["RSI", "MACD", "BollingerBands", "VolatilityHarvest"],
+                    key="manual_strategy",
+                    help="VolatilityHarvest(波动收割)专为BTC-USDT 4H周期优化"
                 )
                 user_strategy = manual_strategy
 
@@ -844,7 +1266,7 @@ elif page == "📉 策略回测":
                         'signal_period': signal
                     }
 
-                else:  # BollingerBands
+                elif manual_strategy == "BollingerBands":
                     col_a, col_b = st.columns(2)
                     with col_a:
                         bb_period = st.number_input("布林带周期", min_value=10, max_value=30, value=20)
@@ -854,6 +1276,34 @@ elif page == "📉 策略回测":
                     user_params = {
                         'bb_period': bb_period,
                         'bb_std': bb_std
+                    }
+
+                else:  # VolatilityHarvest
+                    st.markdown("##### 波动收割策略参数 (专为BTC-USDT 4H优化)")
+
+                    col_a, col_b, col_c = st.columns(3)
+                    with col_a:
+                        atr_period = st.number_input("ATR周期(信号)", min_value=5, max_value=50, value=20, help="用于入场信号的ATR周期")
+                        atr_trail_period = st.number_input("ATR周期(止损)", min_value=50, max_value=300, value=185, help="用于移动止损的ATR周期")
+                    with col_b:
+                        atr_multiplier = st.number_input("ATR倍数", min_value=1.0, max_value=10.0, value=4.5, step=0.5, help="移动止损 = ATR × 此倍数")
+                        stop_loss_pct = st.number_input("止损%", min_value=1.0, max_value=10.0, value=3.0, step=0.5)
+                    with col_c:
+                        profit_target_pct = st.number_input("止盈%", min_value=0.5, max_value=5.0, value=1.3, step=0.1)
+                        trend_ema_period = st.number_input("趋势EMA", min_value=20, max_value=200, value=50, help="趋势判断EMA周期")
+
+                    use_trend_filter = st.checkbox("启用趋势过滤", value=True, help="仅在趋势方向上交易")
+
+                    user_params = {
+                        'atr_period': atr_period,
+                        'atr_trail_period': atr_trail_period,
+                        'atr_multiplier': atr_multiplier,
+                        'entry_atr_threshold': 0.0,
+                        'stop_loss_pct': stop_loss_pct,
+                        'profit_target_pct': profit_target_pct,
+                        'trend_ema_period': trend_ema_period,
+                        'use_trend_filter': use_trend_filter,
+                        'breakout_bars': 1
                     }
 
                 st.info(f"📝 当前参数: {user_params}")
@@ -969,7 +1419,17 @@ elif page == "📉 策略回测":
                 'slow_period': '慢线周期',
                 'signal_period': '信号周期',
                 'bb_period': '布林周期',
-                'bb_std': '标准差'
+                'bb_std': '标准差',
+                # 波动收割策略参数
+                'atr_period': 'ATR周期',
+                'atr_trail_period': 'ATR止损周期',
+                'atr_multiplier': 'ATR倍数',
+                'entry_atr_threshold': '入场阈值',
+                'stop_loss_pct': '止损%',
+                'profit_target_pct': '止盈%',
+                'trend_ema_period': '趋势EMA',
+                'use_trend_filter': '趋势过滤',
+                'breakout_bars': '突破K线数'
             }
 
             with col4:
@@ -1138,7 +1598,7 @@ elif page == "📉 策略回测":
             st.markdown("---")
             st.markdown("### 📚 可用策略介绍")
 
-            strategy_tab1, strategy_tab2, strategy_tab3 = st.tabs(["RSI策略", "MACD策略", "布林带策略"])
+            strategy_tab1, strategy_tab2, strategy_tab3, strategy_tab4 = st.tabs(["RSI策略", "MACD策略", "布林带策略", "波动收割策略"])
 
             with strategy_tab1:
                 st.markdown("""
@@ -1202,6 +1662,47 @@ elif page == "📉 策略回测":
                 **历史胜率**: 65-75%
                 """)
 
+            with strategy_tab4:
+                st.markdown("""
+                #### 波动收割策略 (Volatility Harvest)
+
+                **策略来源**: 基于StrategyQuantX平台生成的Strategy 4.5.163，经过BTC-USDT 4H时间周期回测优化（2017-2026年数据）
+
+                **核心逻辑**:
+                - 使用ATR（平均真实波幅）识别市场波动状态
+                - 价格突破前一根K线收盘价时入场
+                - 动态移动止损保护利润
+                - 趋势过滤（可选）：价格在EMA之上做多，之下做空
+
+                **参数**:
+                - ATR周期（信号）: 20
+                - ATR周期（止损）: 185
+                - ATR倍数: 4.5（移动止损 = ATR × 4.5）
+                - 止损: 3%
+                - 止盈: 1.3%
+                - 趋势EMA: 50
+
+                **出场条件**:
+                - 触及固定止损
+                - 触及固定止盈
+                - 移动止损被触发（随利润增长而收紧）
+
+                **适用场景**:
+                - ✅ BTC-USDT 4H时间周期（回测优化）
+                - ✅ 高波动市场
+                - ✅ 趋势明确的市场
+                - ❌ 低波动横盘市场
+
+                **策略优势**:
+                - 动态止损保护利润
+                - ATR自适应市场波动
+                - 2017-2026年BTC回测表现优异
+
+                **风险提示**:
+                - 震荡市场可能频繁止损
+                - 需要较大资金承受回撤
+                """)
+
     # ==================== Tab 2: 历史记录 ====================
     with tab2:
         st.subheader("📊 历史回测记录")
@@ -1224,7 +1725,7 @@ elif page == "📉 策略回测":
             with col2:
                 filter_strategy = st.selectbox(
                     "筛选策略",
-                    ["全部", "RSI", "MACD", "BollingerBands"],
+                    ["全部", "RSI", "MACD", "BollingerBands", "VolatilityHarvest"],
                     key="filter_strategy"
                 )
 

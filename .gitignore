@@ -251,6 +251,11 @@ ACTION_TODAY.md
 ARCHITECTURE.md
 RESUME_TEMPLATE.md
 
+# 个人简历 (不上传GitHub)
+RESUME_*.md
+resume/
+简历*.md
+
 
 # VS Code 工作区配置
 .vscode/settings.json

@@ -19,6 +19,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from strategies.rsi_strategy import RSIStrategy
 from strategies.macd_strategy import MACDStrategy
 from strategies.bb_strategy import BollingerBandsStrategy
+from strategies.volatility_harvest_strategy import VolatilityHarvestStrategy
 from strategies.backtest_engine import BacktestEngine
 from data_fetchers.okx_fetcher import OKXFetcher
 from data_fetchers.historical_data_manager import HistoricalDataManager
@@ -68,7 +69,8 @@ class StrategyAgent:
         self.available_strategies = {
             'RSI': RSIStrategy,
             'MACD': MACDStrategy,
-            'BollingerBands': BollingerBandsStrategy
+            'BollingerBands': BollingerBandsStrategy,
+            'VolatilityHarvest': VolatilityHarvestStrategy
         }
         self.app = self._build_workflow()
     
@@ -102,7 +104,7 @@ class StrategyAgent:
             return {}
 
         prompt = f"""为 {state['symbol']} ({state['timeframe']}) 选择策略。
-可选：RSI、MACD、BollingerBands。只回复策略名。"""
+可选：RSI、MACD、BollingerBands、VolatilityHarvest（波动收割，特别适合BTC-USDT的4H周期）。只回复策略名。"""
 
         try:
             response = self.llm.invoke([HumanMessage(content=prompt)])
@@ -112,6 +114,18 @@ class StrategyAgent:
                 params = {'rsi_period': 14, 'oversold_threshold': 30, 'overbought_threshold': 70}
             elif 'MACD' in strategy_name:
                 params = {'fast_period': 12, 'slow_period': 26, 'signal_period': 9}
+            elif 'Volatility' in strategy_name or '波动' in strategy_name:
+                params = {
+                    'atr_period': 20,
+                    'atr_trail_period': 185,
+                    'atr_multiplier': 4.5,
+                    'entry_atr_threshold': 0.0,
+                    'stop_loss_pct': 3.0,
+                    'profit_target_pct': 1.3,
+                    'trend_ema_period': 50,
+                    'use_trend_filter': True,
+                    'breakout_bars': 1
+                }
             else:
                 params = {'bb_period': 20, 'bb_std': 2.0}
 
@@ -249,6 +263,18 @@ class StrategyAgent:
                 initial_state["current_params"] = {'rsi_period': 14, 'oversold_threshold': 30, 'overbought_threshold': 70}
             elif user_strategy == 'MACD':
                 initial_state["current_params"] = {'fast_period': 12, 'slow_period': 26, 'signal_period': 9}
+            elif user_strategy == 'VolatilityHarvest':
+                initial_state["current_params"] = {
+                    'atr_period': 20,
+                    'atr_trail_period': 185,
+                    'atr_multiplier': 4.5,
+                    'entry_atr_threshold': 0.0,
+                    'stop_loss_pct': 3.0,
+                    'profit_target_pct': 1.3,
+                    'trend_ema_period': 50,
+                    'use_trend_filter': True,
+                    'breakout_bars': 1
+                }
             else:  # BollingerBands
                 initial_state["current_params"] = {'bb_period': 20, 'bb_std': 2.0}
             initial_state["iteration"] = 1
