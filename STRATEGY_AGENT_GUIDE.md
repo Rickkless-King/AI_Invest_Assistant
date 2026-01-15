@@ -4,7 +4,7 @@
 
 基于NOFX的设计理念，我们实现了一个**自主策略优化Agent**，它能够：
 
-1. ✅ 自动选择适合当前市场的策略（RSI/MACD/布林带）
+1. ✅ 自动选择适合当前市场的策略（RSI/MACD/布林带/波动收割/趋势突破）
 2. ✅ 使用OKX真实历史数据进行回测
 3. ✅ 使用LLM分析回测结果
 4. ✅ 自主优化策略参数
@@ -13,24 +13,34 @@
 
 ---
 
-## 📁 新增文件结构
+## 📁 文件结构
 
 ```
 AI_Invest_Assistant/
 ├── backend/
-│   ├── strategies/                    # 策略模块（新增）
+│   ├── strategies/                    # 策略模块
 │   │   ├── __init__.py
 │   │   ├── strategy_base.py          # 策略基类
 │   │   ├── rsi_strategy.py           # RSI超买超卖策略
 │   │   ├── macd_strategy.py          # MACD金叉死叉策略
 │   │   ├── bb_strategy.py            # 布林带均值回归策略
+│   │   ├── volatility_harvest_strategy.py  # ⭐ 波动收割策略（ATR）
+│   │   ├── trend_breakout_strategy.py      # ⭐ 趋势突破策略（线性回归）
 │   │   └── backtest_engine.py        # 回测引擎
 │   │
-│   └── agents/
-│       └── strategy_agent.py          # 策略优化Agent（新增）
+│   ├── trading/                       # ⭐ 交易管理模块
+│   │   ├── strategy_arena.py         # 策略竞技场（多策略实时对比）
+│   │   └── arena_persistence.py      # 竞技场状态持久化
+│   │
+│   ├── agents/
+│   │   ├── crypto_analyst.py         # 加密货币分析Agent
+│   │   └── strategy_agent.py         # 策略优化Agent
+│   │
+│   └── utils/
+│       └── logger.py                  # 集中日志管理
 │
 └── frontend/
-    └── streamlit_app.py               # 已修改：添加策略优化页面
+    └── streamlit_app.py               # Streamlit应用（含策略优化页面）
 ```
 
 ---
@@ -136,6 +146,74 @@ Agent完成后会显示：
 
 **适用场景**: 震荡市、区间交易
 **历史胜率**: 65-75%
+
+---
+
+### 4️⃣ 波动收割策略（新增）
+
+**核心逻辑**:
+- 使用ATR（平均真实波幅）识别市场波动状态
+- 在波动性确认时入场（ATR > 阈值）
+- 使用动态移动止损保护利润
+
+**默认参数**:
+```python
+{
+    'atr_period': 20,           # ATR计算周期
+    'atr_trail_period': 185,    # 移动止损ATR周期
+    'atr_multiplier': 4.5,      # 移动止损ATR倍数
+    'stop_loss_pct': 3.0,       # 止损百分比
+    'profit_target_pct': 1.3    # 止盈百分比
+}
+```
+
+**适用场景**: 高波动市场（如BTC）、4H时间周期
+**策略特点**: 趋势跟踪为主，动态止损保护利润
+
+---
+
+### 5️⃣ 趋势突破策略（新增）
+
+**核心逻辑**:
+- 使用线性回归判断趋势方向
+- 使用BiggestRange指标计算波动范围
+- 在价格突破关键水平时入场
+
+**默认参数**:
+```python
+{
+    'linreg_period': 102,       # 线性回归周期
+    'price_entry_mult': 0.5,    # 入场价格乘数
+    'biggest_range_period': 157,# BiggestRange周期
+    'bars_valid': 6,            # 入场有效K线数
+    'profit_target_pct': 1.6,   # 止盈百分比
+    'stop_loss_pct': 2.0        # 止损百分比
+}
+```
+
+**适用场景**: 趋势明确的市场、4H时间周期
+**策略特点**: 突破确认入场，适合单边行情
+
+---
+
+## 🏟️ 策略竞技场（新增）
+
+策略竞技场是一个多策略实时交易对比系统，可以同时运行5种策略进行实盘验证：
+
+**功能特点**:
+- 账户资金分为10份，5种策略各分配1份（共50%）
+- 前三种策略（RSI/MACD/BB）由Agent控制参数
+- 后两种策略（波动收割/趋势突破）使用固定参数
+- 实时监控各策略表现并记录交易
+- 支持状态持久化和断点续跑
+
+**使用方式**:
+```python
+from backend.trading.strategy_arena import StrategyArena
+
+arena = StrategyArena(symbol="BTC-USDT", timeframe="4H")
+arena.start()
+```
 
 ---
 
