@@ -83,8 +83,8 @@ class ArenaConfig:
     commission: float = 0.001  # 手续费率0.1%
     check_interval: int = 60  # 信号检查间隔（秒）
     auto_optimize_interval: int = 3600 * 4  # Agent优化间隔（秒）= 4小时
-    # 策略竞技场统一起始日期：2026年1月1日0点
-    start_date: str = "2026-01-01 00:00:00"
+    # 策略竞技场统一起始日期：2025年1月1日0点
+    start_date: str = "2025-01-01 00:00:00"
 
 
 class StrategyArena:

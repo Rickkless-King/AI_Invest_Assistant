@@ -225,6 +225,8 @@ data/
 *.sqlite
 *.sqlite3
 
+rag_material/
+
 # 日志文件
 logs/
 *.log

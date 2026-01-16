@@ -2,7 +2,7 @@
 Streamlit前端界面
 功能: 加密货币分析、回测、实时监控
 """
-# 正确启动streamlit的方式不是直接运行，而是使用streamlit run d:/XiaZai/【1018】Final_Oppotunity/AI_Invest_Assistant/frontend/streamlit_app.py
+# 正确启动streamlit的方式不是直接运行，而是cd AI_Invest_Assistant   streamlit run frontend/streamlit_app.py
 # 按住Ctrl+C来终止应用
 
 import streamlit as st
@@ -676,7 +676,7 @@ elif page == "💰 交易记录":
     - 🤖 **Agent控制**: 前3种策略由AI Agent动态优化参数
     - 🔒 **固定参数**: 波动收割和趋势突破策略使用经过2017-2026年回测验证的固定参数
     - ⏱️ **时间周期**: BTC-USDT 4H
-    - 📅 **统一起始**: 所有策略从 2026-01-01 开始计算表现
+    - 📅 **统一起始**: 所有策略从 2025-01-01 开始计算表现
     - 🔄 **离线同步**: 关闭后再打开会自动同步新数据并模拟策略交易
     """)
 
@@ -735,7 +735,7 @@ elif page == "💰 交易记录":
                 # 首次运行，提示用户点击启动按钮
                 st.session_state['arena_synced'] = True
                 if not has_capital:
-                    st.info("👋 首次运行，请点击下方「🚀 启动竞技场」按钮开始！系统将自动回测2026-01-01至今的所有策略表现。")
+                    st.info("👋 首次运行，请点击下方「🚀 启动竞技场」按钮开始！系统将自动回测2025-01-01至今的所有策略表现。")
 
         # Tab布局
         arena_tab1, arena_tab2, arena_tab3, arena_tab4, arena_tab5 = st.tabs([
@@ -753,7 +753,7 @@ elif page == "💰 交易记录":
 
             with col1:
                 st.markdown("##### 📍 交易设置")
-                st.info(f"**交易对**: BTC-USDT | **时间周期**: 4H | **起始日期**: 2026-01-01")
+                st.info(f"**交易对**: BTC-USDT | **时间周期**: 4H | **起始日期**: 2025-01-01")
 
                 # 解析账户余额（balance_data是字典格式）
                 usdt_balance = 10000  # 默认模拟资金
@@ -813,7 +813,7 @@ elif page == "💰 交易记录":
                         # 1. 分配资金（必须在回测之前）
                         arena.allocate_capital(usdt_balance, force=True)
 
-                        # 2. 执行从2026-01-01开始的完整回测
+                        # 2. 执行从2025-01-01开始的完整回测
                         sync_result = persistence.sync_and_review(
                             arena, auto_optimize=True, force_full_backtest=True
                         )
@@ -827,7 +827,7 @@ elif page == "💰 交易记录":
                         # 显示回测结果
                         if sync_result.get('strategy_performance'):
                             st.success("✅ 竞技场已启动！")
-                            st.markdown("##### 📊 2026-01-01至今回测结果：")
+                            st.markdown("##### 📊 2025-01-01至今回测结果：")
                             for strategy, perf in sync_result['strategy_performance'].items():
                                 trades = perf.get('trades_executed', 0)
                                 ret = perf.get('simulated_return_pct', 0)
@@ -1057,7 +1057,7 @@ elif page == "💰 交易记录":
             status = arena.get_arena_status()
 
             # 按策略显示交易记录
-            for strategy_name in ["RSI", "MACD", "BollingerBands", "VolatilityHarvest"]:
+            for strategy_name in ["RSI", "MACD", "BollingerBands", "VolatilityHarvest", "TrendBreakout"]:
                 if strategy_name in arena.strategies:
                     state = arena.strategies[StrategyType(strategy_name)]
                     trades = state.trades
@@ -1804,109 +1804,238 @@ elif page == "📉 策略回测":
         except Exception as e:
             st.error(f"加载历史记录失败: {str(e)}")
 
-    # ==================== Tab 3: 多轮对话 ====================
+    # ==================== Tab 3: 多轮对话（集成RAG） ====================
     with tab3:
-        st.subheader("💬 与策略Agent对话")
+        st.subheader("💬 与策略Agent对话（RAG增强）")
 
-        if not st.session_state.get('current_result'):
-            st.info("请先运行回测，然后可以询问Agent关于策略的问题")
+        # ========== RAG知识库管理 ==========
+        st.markdown("### 📚 RAG知识库")
+        st.info("""
+        **RAG（检索增强生成）**：Agent会先从交易书籍中检索相关内容，再基于这些内容回答你的问题。
+        这样回答更有理论依据，可以引用《海龟交易法则》、《以交易为生》等经典书籍。
+        """)
+
+        # 初始化RAG服务
+        try:
+            from backend.rag.rag_service import get_rag_service, reset_rag_service
+
+            # 使用session_state缓存RAG服务状态
+            if 'rag_initialized' not in st.session_state:
+                st.session_state['rag_initialized'] = False
+                st.session_state['rag_stats'] = None
+
+            col_rag1, col_rag2, col_rag3 = st.columns([1, 1, 1])
+
+            with col_rag1:
+                if st.button("📖 索引书籍", use_container_width=True, help="解析PDF并建立向量索引"):
+                    with st.spinner("正在索引书籍（首次可能需要下载模型，请耐心等待）..."):
+                        try:
+                            rag_service = get_rag_service()
+                            results = rag_service.index_documents()
+                            st.session_state['rag_initialized'] = True
+                            st.session_state['rag_stats'] = rag_service.get_stats()
+
+                            if results['processed']:
+                                st.success(f"✅ 成功索引 {len(results['processed'])} 本书，共 {results['total_chunks']} 个文本块")
+                            elif results['skipped']:
+                                st.info(f"📚 所有书籍已索引，无需重复处理")
+                            if results['failed']:
+                                st.warning(f"⚠️ {len(results['failed'])} 本书解析失败")
+                        except Exception as e:
+                            st.error(f"索引失败: {str(e)}")
+
+            with col_rag2:
+                if st.button("🔄 强制重建索引", use_container_width=True, help="删除旧索引，重新解析所有书籍"):
+                    with st.spinner("正在重建索引..."):
+                        try:
+                            reset_rag_service()
+                            rag_service = get_rag_service()
+                            results = rag_service.index_documents(force_reindex=True)
+                            st.session_state['rag_initialized'] = True
+                            st.session_state['rag_stats'] = rag_service.get_stats()
+                            st.success(f"✅ 重建完成，共 {results['total_chunks']} 个文本块")
+                        except Exception as e:
+                            st.error(f"重建失败: {str(e)}")
+
+            with col_rag3:
+                if st.button("📊 查看状态", use_container_width=True):
+                    try:
+                        rag_service = get_rag_service()
+                        stats = rag_service.get_stats()
+                        st.session_state['rag_stats'] = stats
+                        st.session_state['rag_initialized'] = stats['total_chunks'] > 0
+                    except Exception as e:
+                        st.error(f"获取状态失败: {str(e)}")
+
+            # 显示知识库状态
+            if st.session_state.get('rag_stats'):
+                stats = st.session_state['rag_stats']
+                col_s1, col_s2 = st.columns(2)
+                with col_s1:
+                    st.metric("文本块总数", stats['total_chunks'])
+                with col_s2:
+                    st.metric("已索引书籍", len(stats['processed_files']))
+
+                if stats['processed_files']:
+                    with st.expander("📚 已索引的书籍"):
+                        for f in stats['processed_files']:
+                            st.markdown(f"- {f}")
+
+        except Exception as e:
+            st.error(f"⚠️ RAG模块加载失败: {type(e).__name__}: {str(e)}")
+            st.caption("如果是依赖问题，请运行: pip install pypdf sentence-transformers chromadb")
+            st.session_state['rag_initialized'] = False
+
+        st.markdown("---")
+
+        # ========== 对话功能（无需先运行回测） ==========
+        st.markdown("### 💬 与交易知识库对话")
+
+        # 获取回测结果（如果有的话）
+        result = st.session_state.get('current_result')
+        has_backtest = result is not None
+
+        if has_backtest:
+            st.success("✅ 已有回测结果，对话将结合回测数据和书籍知识")
         else:
-            result = st.session_state['current_result']
-            metrics = result.get('backtest_result', {}).get('metrics', {})
+            st.info("💡 你可以直接询问交易相关问题，Agent会从书籍中检索答案。运行回测后还能结合回测数据回答。")
 
-            # 显示对话历史
-            st.markdown("### 对话历史")
+        # 显示对话历史
+        for msg in st.session_state['chat_history']:
+            if msg['role'] == 'user':
+                st.markdown(f"**👤 You:** {msg['content']}")
+            else:
+                st.markdown(f"**🤖 Agent:** {msg['content']}")
+            st.markdown("---")
 
-            for msg in st.session_state['chat_history']:
-                if msg['role'] == 'user':
-                    st.markdown(f"**👤 You:** {msg['content']}")
-                else:
-                    st.markdown(f"**🤖 Agent:** {msg['content']}")
-                st.markdown("---")
+        # 输入框
+        user_question = st.text_input(
+            "你的问题",
+            placeholder="例如：止损应该怎么设置？什么是趋势跟踪？海龟交易法则的核心是什么？",
+            key="chat_input"
+        )
 
-            # 输入框
-            user_question = st.text_input(
-                "你的问题",
-                placeholder="例如：为什么选择这个策略？如何进一步优化？参数应该怎么调整？",
-                key="chat_input"
-            )
+        # RAG开关
+        use_rag = st.checkbox(
+            "🔍 启用RAG检索（从交易书籍中检索相关内容）",
+            value=st.session_state.get('rag_initialized', False),
+            disabled=not st.session_state.get('rag_initialized', False),
+            help="启用后，Agent会先检索书籍内容，回答更有理论依据"
+        )
 
-            col1, col2 = st.columns([4, 1])
+        col1, col2 = st.columns([4, 1])
 
-            with col1:
-                if st.button("📤 发送", type="primary", use_container_width=True):
-                    if user_question:
-                        with st.spinner("Agent思考中..."):
-                            try:
-                                from langchain_openai import ChatOpenAI
-                                from langchain_core.messages import HumanMessage, SystemMessage
-                                import os
+        with col1:
+            if st.button("📤 发送", type="primary", use_container_width=True):
+                if user_question:
+                    with st.spinner("Agent思考中..."):
+                        try:
+                            from langchain_openai import ChatOpenAI
+                            from langchain_core.messages import HumanMessage, SystemMessage
+                            import os
 
-                                use_deepseek = st.session_state.get('use_deepseek', True)
+                            use_deepseek = st.session_state.get('use_deepseek', True)
 
-                                if use_deepseek:
-                                    llm = ChatOpenAI(
-                                        model="deepseek-chat",
-                                        base_url="https://api.deepseek.com",
-                                        api_key=os.getenv("DEEPSEEK_API_KEY"),
-                                        temperature=0.7,
-                                    )
-                                else:
-                                    llm = ChatOpenAI(
-                                        model="qwen-plus",
-                                        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-                                        api_key=os.getenv("DASHSCOPE_API_KEY"),
-                                        temperature=0.7,
-                                    )
+                            if use_deepseek:
+                                llm = ChatOpenAI(
+                                    model="deepseek-chat",
+                                    base_url="https://api.deepseek.com",
+                                    api_key=os.getenv("DEEPSEEK_API_KEY"),
+                                    temperature=0.7,
+                                )
+                            else:
+                                llm = ChatOpenAI(
+                                    model="qwen-plus",
+                                    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+                                    api_key=os.getenv("DASHSCOPE_API_KEY"),
+                                    temperature=0.7,
+                                )
 
-                                # 构建上下文
-                                context = f"""
-我是策略优化Agent。以下是我的优化结果：
+                            # ========== RAG检索 ==========
+                            rag_context = ""
+                            retrieved_sources = []
 
+                            if use_rag and st.session_state.get('rag_initialized'):
+                                try:
+                                    from backend.rag.rag_service import get_rag_service
+                                    rag_service = get_rag_service()
+
+                                    # 检索相关文档
+                                    rag_context = rag_service.get_context_for_llm(user_question, top_k=3)
+                                    docs = rag_service.retrieve(user_question, top_k=3)
+                                    retrieved_sources = [doc['source'] for doc in docs]
+
+                                    if rag_context:
+                                        st.info(f"📚 已从以下书籍检索到相关内容: {', '.join(set(retrieved_sources))}")
+                                except Exception as e:
+                                    st.warning(f"RAG检索失败: {str(e)}")
+
+                            # ========== 构建上下文 ==========
+                            context = "我是量化交易策略Agent，擅长策略分析、参数优化和交易知识解答。\n\n"
+
+                            # 如果有回测结果，添加到上下文
+                            if has_backtest:
+                                metrics = result.get('backtest_result', {}).get('metrics', {})
+                                context += f"""========== 当前回测结果 ==========
 策略: {result['current_strategy']}
 参数: {result['current_params']}
 总收益率: {metrics.get('total_return_pct', 0):.2f}%
 夏普比率: {metrics.get('sharpe_ratio', 0):.2f}
 最大回撤: {metrics.get('max_drawdown_pct', 0):.2f}%
 胜率: {metrics.get('win_rate', 0):.2f}%
+========================================
 
-优化过程:
-{chr(10).join([f"迭代{h['iteration']}: 收益{h['metrics']['total_return_pct']:.2f}%, 夏普{h['metrics']['sharpe_ratio']:.2f}" for h in result.get('optimization_history', [])])}
+"""
 
-历史对话:
+                            # 如果有RAG检索结果，添加到上下文
+                            if rag_context:
+                                context += f"""========== 交易书籍参考资料 ==========
+{rag_context}
+========================================
+
+"""
+
+                            context += f"""历史对话:
 {chr(10).join([f"{m['role']}: {m['content']}" for m in st.session_state['chat_history'][-3:]])}
 
 用户问题: {user_question}
 
-请基于以上信息回答用户问题。如果用户询问如何调整参数，请给出具体的参数建议。
+请基于以上信息回答用户问题。
+{"如果参考资料中有相关内容，请在回答中引用具体来源（如：根据《海龟交易法则》...）。" if rag_context else ""}
+{"如果用户询问如何调整参数，请结合回测结果给出具体建议。" if has_backtest else ""}
 """
 
-                                response = llm.invoke([
-                                    SystemMessage(content="你是一个专业的量化交易策略Agent，擅长策略分析和参数优化"),
-                                    HumanMessage(content=context)
-                                ])
+                            response = llm.invoke([
+                                SystemMessage(content="你是一个专业的量化交易策略Agent，擅长策略分析、参数优化和交易知识解答。如果提供了交易书籍的参考资料，请在回答中恰当引用书名。回答要专业、有理有据。"),
+                                HumanMessage(content=context)
+                            ])
 
-                                # 保存到历史
-                                st.session_state['chat_history'].append({
-                                    'role': 'user',
-                                    'content': user_question
-                                })
-                                st.session_state['chat_history'].append({
-                                    'role': 'agent',
-                                    'content': response.content
-                                })
+                            # 保存到历史（如果启用了RAG，记录来源）
+                            user_msg = user_question
+                            agent_msg = response.content
+                            if retrieved_sources:
+                                agent_msg += f"\n\n📚 *本回答参考了: {', '.join(set(retrieved_sources))}*"
 
-                                st.rerun()
+                            st.session_state['chat_history'].append({
+                                'role': 'user',
+                                'content': user_msg
+                            })
+                            st.session_state['chat_history'].append({
+                                'role': 'agent',
+                                'content': agent_msg
+                            })
 
-                            except Exception as e:
-                                st.error(f"询问失败: {str(e)}")
-                    else:
-                        st.warning("请输入问题")
+                            st.rerun()
 
-            with col2:
-                if st.button("🗑️ 清空", use_container_width=True):
-                    st.session_state['chat_history'] = []
-                    st.rerun()
+                        except Exception as e:
+                            st.error(f"询问失败: {str(e)}")
+                else:
+                    st.warning("请输入问题")
+
+        with col2:
+            if st.button("🗑️ 清空", use_container_width=True):
+                st.session_state['chat_history'] = []
+                st.rerun()
 
 # 页脚
 st.sidebar.markdown("---")
