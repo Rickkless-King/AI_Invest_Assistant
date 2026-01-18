@@ -537,6 +537,115 @@ class ArenaPersistence:
 
         return result
 
+    def generate_net_value_history(self, arena, start_date_str: str = "2026-01-01") -> pd.DataFrame:
+        """
+        生成从指定日期开始的完整净值历史数据
+
+        Args:
+            arena: StrategyArena实例
+            start_date_str: 起始日期 (格式: YYYY-MM-DD)
+
+        Returns:
+            DataFrame，包含 timestamp, strategy, net_value 列
+        """
+        from backend.trading.strategy_arena import StrategyType
+
+        start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
+
+        # 计算需要获取的天数
+        days_needed = (datetime.now() - start_date).days + 5
+
+        # 获取K线数据
+        df = self.data_manager.get_latest_data_for_backtest(
+            symbol=arena.config.symbol,
+            timeframe=arena.config.timeframe,
+            days=days_needed,
+            auto_update=False
+        )
+
+        if df.empty:
+            logger.warning("无法获取K线数据用于生成净值曲线")
+            return pd.DataFrame()
+
+        # 筛选从起始日期开始的数据
+        df_backtest = df[df['timestamp'] >= start_date].copy()
+
+        if df_backtest.empty:
+            return pd.DataFrame()
+
+        # 获取初始资金（每个策略相同）
+        initial_capital = list(arena.strategies.values())[0].initial_capital
+        if initial_capital == 0:
+            initial_capital = 478.35  # 默认值
+
+        commission = arena.config.commission
+
+        # 为每个策略生成完整的信号序列
+        strategies_signals = {}
+        for strategy_type in arena.strategies.keys():
+            strategy = arena.get_strategy_instance(strategy_type)
+            df_with_signals = strategy.generate_signals(df.copy())
+            # 只保留从起始日期开始的数据
+            df_signals = df_with_signals[df_with_signals['timestamp'] >= start_date].copy()
+            strategies_signals[strategy_type] = df_signals
+
+        # 按时间顺序模拟，记录每个时间点所有策略的净值
+        net_value_records = []
+
+        # 初始化每个策略的状态
+        strategy_states = {}
+        for strategy_type in arena.strategies.keys():
+            strategy_states[strategy_type] = {
+                'capital': initial_capital,
+                'position': 0,
+                'entry_price': 0
+            }
+
+        # 获取时间序列（以第一个策略的时间为准）
+        first_strategy = list(strategies_signals.keys())[0]
+        timestamps = strategies_signals[first_strategy]['timestamp'].tolist()
+
+        for i, ts in enumerate(timestamps):
+            current_price = strategies_signals[first_strategy].iloc[i]['close']
+
+            # 对每个策略执行交易逻辑
+            for strategy_type, state in strategy_states.items():
+                df_signals = strategies_signals[strategy_type]
+                if i >= len(df_signals):
+                    continue
+
+                signal = df_signals.iloc[i]['signal']
+                price = df_signals.iloc[i]['close']
+
+                # 买入信号且无持仓
+                if signal == 1 and state['position'] == 0 and state['capital'] > 0:
+                    amount = (state['capital'] * (1 - commission)) / price
+                    state['position'] = amount
+                    state['entry_price'] = price
+                    state['capital'] = 0
+
+                # 卖出信号且有持仓
+                elif signal == -1 and state['position'] > 0:
+                    sell_value = state['position'] * price * (1 - commission)
+                    state['capital'] = sell_value
+                    state['position'] = 0
+                    state['entry_price'] = 0
+
+                # 计算当前净值
+                if state['position'] > 0:
+                    net_value = state['position'] * price
+                else:
+                    net_value = state['capital']
+
+                # 记录净值
+                net_value_records.append({
+                    'timestamp': ts,
+                    'strategy': strategy_type.value,
+                    'net_value': net_value
+                })
+
+        return pd.DataFrame(net_value_records)
+
     def _auto_optimize_params(self, arena, performance: Dict) -> List[Dict]:
         """
         Agent自动优化参数

@@ -1101,58 +1101,76 @@ elif page == "💰 交易记录":
                 st.markdown("---")
                 st.subheader("📊 策略净值曲线 (从2026-01-01开始)")
 
-                # 从数据库获取净值历史
-                from backend.database.db_manager import DatabaseManager
-                db = DatabaseManager()
-                net_value_df = db.get_net_value_history(start_date="2026-01-01")
+                # 使用回测数据生成完整的历史净值曲线
+                try:
+                    with st.spinner("正在生成净值曲线..."):
+                        net_value_df = persistence.generate_net_value_history(arena, start_date_str="2026-01-01")
 
-                if not net_value_df.empty:
-                    import plotly.express as px
+                    if not net_value_df.empty:
+                        import plotly.express as px
 
-                    # 转换时间戳为datetime
-                    net_value_df['timestamp'] = pd.to_datetime(net_value_df['timestamp'])
+                        # 转换时间戳为datetime
+                        net_value_df['timestamp'] = pd.to_datetime(net_value_df['timestamp'])
 
-                    # 创建净值曲线图
-                    fig = px.line(
-                        net_value_df,
-                        x='timestamp',
-                        y='net_value',
-                        color='strategy',
-                        title='5种策略净值随时间变化',
-                        labels={
-                            'timestamp': '时间',
-                            'net_value': '净值 (USDT)',
-                            'strategy': '策略'
-                        }
-                    )
+                        # 获取初始资金用于标注起点
+                        initial_capital = list(arena.strategies.values())[0].initial_capital
+                        if initial_capital == 0:
+                            initial_capital = 478.35
 
-                    # 更新图表样式
-                    fig.update_layout(
-                        xaxis_title="时间",
-                        yaxis_title="净值 (USDT)",
-                        legend_title="策略",
-                        hovermode="x unified",
-                        height=500
-                    )
+                        # 创建净值曲线图
+                        fig = px.line(
+                            net_value_df,
+                            x='timestamp',
+                            y='net_value',
+                            color='strategy',
+                            title=f'5种策略净值曲线 (起点: ${initial_capital:.2f} USDT)',
+                            labels={
+                                'timestamp': '时间',
+                                'net_value': '净值 (USDT)',
+                                'strategy': '策略'
+                            }
+                        )
 
-                    # 添加网格线
-                    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
-                    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                        # 添加起点参考线
+                        fig.add_hline(
+                            y=initial_capital,
+                            line_dash="dash",
+                            line_color="gray",
+                            annotation_text=f"起点 ${initial_capital:.2f}",
+                            annotation_position="right"
+                        )
 
-                    st.plotly_chart(fig, use_container_width=True)
+                        # 更新图表样式
+                        fig.update_layout(
+                            xaxis_title="时间",
+                            yaxis_title="净值 (USDT)",
+                            legend_title="策略",
+                            hovermode="x unified",
+                            height=500
+                        )
 
-                    # 显示最新净值数据
-                    st.markdown("**各策略最新净值:**")
-                    latest_values = net_value_df.groupby('strategy').last().reset_index()
-                    cols = st.columns(5)
-                    for idx, row in latest_values.iterrows():
-                        with cols[idx % 5]:
-                            st.metric(
-                                label=row['strategy'],
-                                value=f"${row['net_value']:.2f}"
-                            )
-                else:
-                    st.info("暂无净值数据。启动竞技场并运行一段时间后，系统会自动记录净值变化。")
+                        # 添加网格线
+                        fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+
+                        st.plotly_chart(fig, use_container_width=True)
+
+                        # 显示各策略最新净值和收益率
+                        st.markdown("**各策略最新净值:**")
+                        latest_values = net_value_df.groupby('strategy').last().reset_index()
+                        cols = st.columns(5)
+                        for idx, row in latest_values.iterrows():
+                            with cols[idx % 5]:
+                                profit_pct = ((row['net_value'] - initial_capital) / initial_capital) * 100
+                                st.metric(
+                                    label=row['strategy'],
+                                    value=f"${row['net_value']:.2f}",
+                                    delta=f"{profit_pct:+.2f}%"
+                                )
+                    else:
+                        st.info("暂无净值数据。请先启动竞技场。")
+                except Exception as e:
+                    st.error(f"生成净值曲线失败: {str(e)}")
 
         # ==================== Tab 4: 交易历史 ====================
         with arena_tab4:
