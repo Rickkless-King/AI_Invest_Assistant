@@ -63,7 +63,7 @@ def initialize_arena():
 
             # 检查是否有资金分配
             status = arena.get_arena_status()
-            has_capital = any(s.get('capital', 0) > 0 for s in status['strategies'].values())
+            has_capital = any(s.get('initial_capital', 0) > 0 for s in status['strategies'].values())
 
             if has_capital:
                 # 自动同步离线数据
