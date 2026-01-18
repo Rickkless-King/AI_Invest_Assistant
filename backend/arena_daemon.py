@@ -47,9 +47,8 @@ def initialize_arena():
         # 创建竞技场配置
         config = ArenaConfig(
             symbol="BTC-USDT",
-            timeframe="1H",
-            check_interval=60,  # 60秒检查一次
-            is_demo=True  # 模拟盘
+            timeframe="4H",
+            check_interval=60  # 60秒检查一次
         )
 
         # 创建竞技场实例
