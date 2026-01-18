@@ -1,0 +1,27 @@
+[Unit]
+Description=AI Invest Assistant - Strategy Arena Daemon
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/AI_Invest_Assistant
+Environment="PATH=/home/ubuntu/AI_Invest_Assistant/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONPATH=/home/ubuntu/AI_Invest_Assistant"
+ExecStart=/home/ubuntu/AI_Invest_Assistant/venv/bin/python3 /home/ubuntu/AI_Invest_Assistant/backend/arena_daemon.py
+
+# 自动重启配置
+Restart=always
+RestartSec=10
+
+# 日志配置
+StandardOutput=append:/home/ubuntu/AI_Invest_Assistant/logs/daemon_stdout.log
+StandardError=append:/home/ubuntu/AI_Invest_Assistant/logs/daemon_stderr.log
+
+# 安全配置
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
