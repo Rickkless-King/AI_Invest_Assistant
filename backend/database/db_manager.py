@@ -123,6 +123,25 @@ class DatabaseManager:
             )
             """)
 
+            # 6. 策略净值快照表（用于绘制净值曲线图）
+            self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS net_value_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                strategy TEXT NOT NULL,           -- 策略名称
+                net_value REAL NOT NULL,          -- 净值（USDT）
+                position REAL DEFAULT 0,          -- 当前持仓量
+                btc_price REAL,                   -- 当时BTC价格
+                timestamp DATETIME NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+            """)
+
+            # 创建索引以加速查询
+            self.cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_net_value_strategy_time
+            ON net_value_snapshots(strategy, timestamp)
+            """)
+
             self.conn.commit()
             print("✅ 数据表创建成功")
 
@@ -379,6 +398,108 @@ class DatabaseManager:
         except Exception as e:
             print(f"❌ 获取统计信息失败: {str(e)}")
             return {}
+
+    def save_net_value_snapshot(self, strategy: str, net_value: float,
+                                  position: float = 0, btc_price: float = None,
+                                  timestamp: str = None):
+        """
+        保存策略净值快照
+
+        Args:
+            strategy: 策略名称
+            net_value: 净值（USDT）
+            position: 当前持仓量
+            btc_price: 当时BTC价格
+            timestamp: 时间戳
+        """
+        with self._lock:
+            try:
+                if timestamp is None:
+                    timestamp = datetime.now().isoformat()
+
+                self.cursor.execute("""
+                    INSERT INTO net_value_snapshots
+                    (strategy, net_value, position, btc_price, timestamp)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (strategy, net_value, position, btc_price, timestamp))
+
+                self.conn.commit()
+
+            except Exception as e:
+                print(f"❌ 保存净值快照失败: {str(e)}")
+                self.conn.rollback()
+
+    def save_all_strategies_net_value(self, strategies_data: dict, btc_price: float = None,
+                                       timestamp: str = None):
+        """
+        批量保存所有策略的净值快照
+
+        Args:
+            strategies_data: {策略名: {'net_value': 净值, 'position': 持仓}}
+            btc_price: 当时BTC价格
+            timestamp: 时间戳
+        """
+        with self._lock:
+            try:
+                if timestamp is None:
+                    timestamp = datetime.now().isoformat()
+
+                for strategy, data in strategies_data.items():
+                    self.cursor.execute("""
+                        INSERT INTO net_value_snapshots
+                        (strategy, net_value, position, btc_price, timestamp)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (
+                        strategy,
+                        data.get('net_value', 0),
+                        data.get('position', 0),
+                        btc_price,
+                        timestamp
+                    ))
+
+                self.conn.commit()
+
+            except Exception as e:
+                print(f"❌ 批量保存净值快照失败: {str(e)}")
+                self.conn.rollback()
+
+    def get_net_value_history(self, strategy: str = None, start_date: str = None,
+                               end_date: str = None) -> pd.DataFrame:
+        """
+        获取净值历史数据
+
+        Args:
+            strategy: 策略名称（可选，不填则返回所有策略）
+            start_date: 开始日期
+            end_date: 结束日期
+
+        Returns:
+            净值历史DataFrame
+        """
+        try:
+            query = "SELECT * FROM net_value_snapshots WHERE 1=1"
+            params = []
+
+            if strategy:
+                query += " AND strategy = ?"
+                params.append(strategy)
+
+            if start_date:
+                query += " AND timestamp >= ?"
+                params.append(start_date)
+
+            if end_date:
+                query += " AND timestamp <= ?"
+                params.append(end_date)
+
+            query += " ORDER BY timestamp ASC"
+
+            df = pd.read_sql_query(query, self.conn, params=params)
+            return df
+
+        except Exception as e:
+            print(f"❌ 查询净值历史失败: {str(e)}")
+            return pd.DataFrame()
 
     def close(self):
         """关闭数据库连接"""

@@ -85,6 +85,8 @@ class ArenaConfig:
     auto_optimize_interval: int = 3600 * 4  # Agent优化间隔（秒）= 4小时
     # 策略竞技场统一起始日期：2025年1月1日0点
     start_date: str = "2025-01-01 00:00:00"
+    # 真实交易模式：True=在OKX上真正执行交易，False=模拟交易
+    live_trading: bool = True
 
 
 class StrategyArena:
@@ -287,6 +289,21 @@ class StrategyArena:
             amount = (state.current_capital * (1 - self.config.commission)) / current_price
             cost = state.current_capital
 
+            # 真实交易模式：调用 OKX API 下单
+            if self.config.live_trading:
+                order_result = self.okx.place_order(
+                    symbol=self.config.symbol,
+                    side='buy',
+                    order_type='market',  # 使用市价单确保成交
+                    size=round(amount, 6)  # OKX 精度限制
+                )
+
+                if 'error' in order_result:
+                    logger.error(f"[{strategy_type.value}] 真实买入失败: {order_result['error']}")
+                    return None
+
+                logger.info(f"[{strategy_type.value}] 真实买入订单已提交: {order_result.get('orderId', 'N/A')}")
+
             state.position = amount
             state.entry_price = current_price
             state.current_capital = 0
@@ -298,12 +315,29 @@ class StrategyArena:
                 "amount": amount,
                 "cost": cost,
                 "timestamp": now.isoformat(),
+                "live_trading": self.config.live_trading,
             }
             state.trades.append(trade)
-            logger.info(f"[{strategy_type.value}] 买入 {amount:.6f} BTC @ {current_price:.2f}")
+            mode = "真实" if self.config.live_trading else "模拟"
+            logger.info(f"[{strategy_type.value}] {mode}买入 {amount:.6f} BTC @ {current_price:.2f}")
 
         # 卖出信号且有持仓
         elif signal == -1 and state.position > 0:
+            # 真实交易模式：调用 OKX API 下单
+            if self.config.live_trading:
+                order_result = self.okx.place_order(
+                    symbol=self.config.symbol,
+                    side='sell',
+                    order_type='market',  # 使用市价单确保成交
+                    size=round(state.position, 6)  # OKX 精度限制
+                )
+
+                if 'error' in order_result:
+                    logger.error(f"[{strategy_type.value}] 真实卖出失败: {order_result['error']}")
+                    return None
+
+                logger.info(f"[{strategy_type.value}] 真实卖出订单已提交: {order_result.get('orderId', 'N/A')}")
+
             # 计算卖出收益
             sell_value = state.position * current_price * (1 - self.config.commission)
             profit = sell_value - (state.position * state.entry_price)
@@ -318,6 +352,7 @@ class StrategyArena:
                 "profit": profit,
                 "profit_pct": profit_pct,
                 "timestamp": now.isoformat(),
+                "live_trading": self.config.live_trading,
             }
 
             # 更新统计
@@ -331,7 +366,8 @@ class StrategyArena:
             state.entry_price = 0
 
             state.trades.append(trade)
-            logger.info(f"[{strategy_type.value}] 卖出 @ {current_price:.2f}, 收益: {profit:.2f} ({profit_pct:.2f}%)")
+            mode = "真实" if self.config.live_trading else "模拟"
+            logger.info(f"[{strategy_type.value}] {mode}卖出 @ {current_price:.2f}, 收益: {profit:.2f} ({profit_pct:.2f}%)")
 
         # 更新总收益率
         if state.position > 0:
@@ -381,7 +417,39 @@ class StrategyArena:
                     strategy=trade['strategy']
                 )
 
+        # 记录所有策略的净值快照（每次检查都记录，用于绘制净值曲线）
+        self._save_net_value_snapshots(current_price)
+
         return trades
+
+    def _save_net_value_snapshots(self, current_price: float):
+        """
+        保存所有策略的净值快照
+
+        Args:
+            current_price: 当前BTC价格
+        """
+        try:
+            strategies_data = {}
+            for strategy_type, state in self.strategies.items():
+                # 计算当前净值
+                if state.position > 0:
+                    net_value = state.position * current_price
+                else:
+                    net_value = state.current_capital
+
+                strategies_data[strategy_type.value] = {
+                    'net_value': net_value,
+                    'position': state.position
+                }
+
+            # 批量保存到数据库
+            self.db.save_all_strategies_net_value(
+                strategies_data=strategies_data,
+                btc_price=current_price
+            )
+        except Exception as e:
+            logger.warning(f"保存净值快照失败: {str(e)}")
 
     def get_arena_status(self) -> Dict:
         """获取竞技场状态"""

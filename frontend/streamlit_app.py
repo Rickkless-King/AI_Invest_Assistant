@@ -1097,6 +1097,63 @@ elif page == "💰 交易记录":
                     comparison_df = arena.get_performance_comparison()
                     st.dataframe(comparison_df, use_container_width=True)
 
+                # ==================== 净值曲线图表 ====================
+                st.markdown("---")
+                st.subheader("📊 策略净值曲线 (从2026-01-01开始)")
+
+                # 从数据库获取净值历史
+                from backend.database.db_manager import DatabaseManager
+                db = DatabaseManager()
+                net_value_df = db.get_net_value_history(start_date="2026-01-01")
+
+                if not net_value_df.empty:
+                    import plotly.express as px
+
+                    # 转换时间戳为datetime
+                    net_value_df['timestamp'] = pd.to_datetime(net_value_df['timestamp'])
+
+                    # 创建净值曲线图
+                    fig = px.line(
+                        net_value_df,
+                        x='timestamp',
+                        y='net_value',
+                        color='strategy',
+                        title='5种策略净值随时间变化',
+                        labels={
+                            'timestamp': '时间',
+                            'net_value': '净值 (USDT)',
+                            'strategy': '策略'
+                        }
+                    )
+
+                    # 更新图表样式
+                    fig.update_layout(
+                        xaxis_title="时间",
+                        yaxis_title="净值 (USDT)",
+                        legend_title="策略",
+                        hovermode="x unified",
+                        height=500
+                    )
+
+                    # 添加网格线
+                    fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                    fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='lightgray')
+
+                    st.plotly_chart(fig, use_container_width=True)
+
+                    # 显示最新净值数据
+                    st.markdown("**各策略最新净值:**")
+                    latest_values = net_value_df.groupby('strategy').last().reset_index()
+                    cols = st.columns(5)
+                    for idx, row in latest_values.iterrows():
+                        with cols[idx % 5]:
+                            st.metric(
+                                label=row['strategy'],
+                                value=f"${row['net_value']:.2f}"
+                            )
+                else:
+                    st.info("暂无净值数据。启动竞技场并运行一段时间后，系统会自动记录净值变化。")
+
         # ==================== Tab 4: 交易历史 ====================
         with arena_tab4:
             st.subheader("📝 策略交易历史")
