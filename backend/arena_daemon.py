@@ -133,17 +133,23 @@ def monitor_and_trade():
 
             # 2. 显示当前状态
             status = arena.get_arena_status()
+
+            # 计算总资产和总收益率
+            total_value = sum(s.get('current_value', 0) for s in status['strategies'].values())
+            total_initial = sum(s.get('initial_capital', 0) for s in status['strategies'].values())
+            total_return = ((total_value - total_initial) / total_initial * 100) if total_initial > 0 else 0
+
             logger.info(f"\n📊 当前竞技场状态:")
-            logger.info(f"   总资产: ${status['total_value']:.2f} USDT")
-            logger.info(f"   总收益率: {status['total_return']:.2%}")
+            logger.info(f"   总资产: ${total_value:.2f} USDT")
+            logger.info(f"   总收益率: {total_return:+.2f}%")
 
             # 显示各策略简要状态
             for strategy_name, strategy_info in status['strategies'].items():
-                profit_pct = strategy_info.get('profit_pct', 0)
+                return_pct = strategy_info.get('return_pct', 0)
                 position = strategy_info.get('position', 0)
                 logger.info(
                     f"   {strategy_name}: "
-                    f"收益 {profit_pct:+.2%} | "
+                    f"收益 {return_pct:+.2f}% | "
                     f"持仓 {position:.6f} BTC"
                 )
 
