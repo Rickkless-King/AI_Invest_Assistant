@@ -17,10 +17,10 @@ sys.path.insert(0, str(project_root))
 
 from backend.trading.strategy_arena import StrategyArena, ArenaConfig
 from backend.trading.arena_persistence import ArenaPersistence
-from backend.utils.logger import setup_logger
+from backend.utils.logger import get_logger
 
 # 配置日志
-logger = setup_logger('arena_daemon', 'arena_daemon.log')
+logger = get_logger('arena_daemon')
 
 # 全局变量
 arena = None
