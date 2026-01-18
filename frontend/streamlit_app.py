@@ -30,6 +30,53 @@ st.set_page_config(
 # 应用自定义样式
 st.markdown(get_custom_css(), unsafe_allow_html=True)
 
+# ========== 密码验证 ==========
+# 初始化登录状态
+if 'authenticated' not in st.session_state:
+    st.session_state.authenticated = False
+
+# 如果未登录，显示密码输入界面
+if not st.session_state.authenticated:
+    st.markdown("""
+        <div style="text-align: center; padding: 3rem 0 2rem 0;">
+            <h1 style="font-size: 2.5rem; margin-bottom: 1rem; color: #D97757;">
+                🚀 AI量化交易平台
+            </h1>
+            <p style="font-size: 1.2rem; color: #666; margin-bottom: 2rem;">
+                欢迎访问！请输入访问密码
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    # 居中布局
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        password = st.text_input(
+            "访问密码",
+            type="password",
+            placeholder="请输入访问密码",
+            key="password_input"
+        )
+
+        if st.button("登录", use_container_width=True, type="primary"):
+            if password == "NBLQL":
+                st.session_state.authenticated = True
+                st.success("✅ 登录成功！正在加载应用...")
+                st.rerun()
+            else:
+                st.error("❌ 密码错误，请重试")
+
+        st.markdown("""
+            <div style="text-align: center; margin-top: 2rem; color: #999; font-size: 0.9rem;">
+                <p>💡 提示：此平台为演示项目，用于求职展示</p>
+                <p>如需访问密码，请联系作者</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+    st.stop()  # 未登录时停止执行后续代码
+
+# ========== 已登录，继续正常流程 ==========
+
 # 初始化组件
 @st.cache_resource
 def init_components():
